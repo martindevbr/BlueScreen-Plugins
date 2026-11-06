@@ -1,0 +1,141 @@
+#caScreen { --ca-add: #4ade80; --ca-del: #f87171; grid-area: 2 / 2 / 4 / -1; z-index: 20; margin-right: var(--gap); position: relative; display: flex; flex-direction: column; background: var(--bg); color: var(--fg); min-width: 0; min-height: 0; font-size: 13px; }
+#caScreen[hidden] { display: none; }
+#caScreen .ca-main { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 22px 28px 16px; overflow: hidden; }
+#caScreen .ca-espera { margin: auto; text-align: center; }
+#caScreen .ca-erro { color: var(--del); }
+#caScreen .ca-mute { color: var(--muted); font-size: 12px; }
+#caScreen .ca-mono { font-family: var(--mono); font-size: 12px; }
+#caScreen .ca-topo { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+#caScreen .ca-topo h1 { margin: 0; font-size: 20px; font-weight: 600; }
+#caScreen .ca-sub-t { margin-right: auto; color: var(--muted); font-size: 12.5px; }
+#caScreen .ca-seg { display: flex; gap: 4px; }
+#caScreen .ca-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+#caScreen .ca-ctl { display: grid; gap: 2px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-2); min-width: 0; }
+#caScreen .ca-ctl > span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+#caScreen .ca-ctl input { border: 0; outline: 0; background: none; min-width: 0; color: var(--fg); font: inherit; }
+#caScreen .ca-ctl:focus-within { border-color: var(--accent); }
+#caScreen .ca-grow { flex: 1; min-width: 220px; }
+#caScreen .ca-check { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-2); cursor: pointer; }
+#caScreen .ca-qtd { min-width: 18px; padding: 0 6px; border-radius: 9px; background: var(--hover); color: var(--fg-2); font-size: 11px; font-weight: 600; text-align: center; line-height: 18px; white-space: nowrap; }
+#caScreen .ca-corpo { flex: 1; min-height: 0; display: grid; grid-template-columns: 250px 1fr; gap: 16px; }
+#caScreen .ca-lado { overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 2px; }
+#caScreen .ca-lado h3 { margin: 12px 0 4px; padding: 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+#caScreen .ca-filtro { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; border: 0; border-radius: var(--r); background: none; color: var(--fg-2); font: inherit; text-align: left; cursor: pointer; }
+#caScreen .ca-filtro > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#caScreen .ca-filtro:hover { background: var(--hover); color: var(--fg); }
+#caScreen .ca-filtro.on { background: var(--hover); color: var(--fg); font-weight: 600; box-shadow: inset 2px 0 0 var(--accent); }
+#caScreen .ca-lista { overflow-y: auto; min-width: 0; padding-right: 6px; }
+#caScreen .ca-vazio { margin: 24px 0; color: var(--muted); text-align: center; }
+#caScreen .ca-dia { position: sticky; top: 0; z-index: 1; margin: 0; padding: 8px 0 6px; background: var(--bg); color: var(--fg-2); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+#caScreen .ca-bloco { margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+#caScreen .ca-bloco > header { padding: 9px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
+#caScreen .ca-pedido { font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+#caScreen .ca-sub { margin-right: 6px; padding: 0 6px; border-radius: 4px; background: var(--hover); color: var(--muted); font-size: 11px; }
+#caScreen .ca-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 11.5px; }
+#caScreen .ca-link { margin-left: auto; border: 0; background: none; padding: 0; color: var(--accent); font: inherit; cursor: pointer; }
+#caScreen .ca-link:hover { text-decoration: underline; }
+#caScreen .ca-bloco ol { list-style: none; margin: 0; padding: 4px 0; }
+#caScreen .ca-ev { display: flex; align-items: center; gap: 10px; padding: 4px 12px; cursor: pointer; min-width: 0; }
+#caScreen .ca-ev:hover { background: var(--hover); }
+#caScreen .ca-ev.on { background: var(--hover); box-shadow: inset 2px 0 0 var(--accent); }
+#caScreen .ca-ev time { color: var(--muted); font-family: var(--mono); font-size: 11.5px; flex: none; }
+#caScreen .ca-acao { flex: none; min-width: 74px; color: var(--fg-2); font-size: 11.5px; }
+#caScreen .ca-criou { color: var(--ca-add); }
+#caScreen .ca-reescreveu { color: var(--warn); }
+#caScreen .ca-arq, #caScreen .ca-cmd { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#caScreen .ca-arq { font-family: var(--mono); font-size: 12px; }
+#caScreen .ca-conta { flex: none; font-family: var(--mono); font-size: 11.5px; }
+#caScreen .ca-mais { color: var(--ca-add); font-weight: 600; }
+#caScreen .ca-menos { color: var(--ca-del); font-weight: 600; }
+#caScreen .ca-alvos { display: flex; gap: 4px; flex: none; flex-wrap: wrap; }
+#caScreen .ca-alvo { padding: 0 7px; border-radius: 9px; border: 1px solid var(--line); color: var(--fg-2); font-size: 11px; line-height: 17px; white-space: nowrap; }
+#caScreen .ca-alvo[data-grupo="extensao"] { border-color: var(--accent); color: var(--accent); }
+#caScreen .ca-alvo[data-grupo="memoria"], #caScreen .ca-alvo[data-grupo="skill"] { border-color: var(--warn); color: var(--warn); }
+#caScreen .ca-falhou { flex: none; color: var(--del); font-size: 11px; font-weight: 600; }
+#caScreen .ca-ev.erro .ca-cmd { color: var(--del); }
+#caScreen .ca-gaveta { position: absolute; top: 0; right: 0; bottom: 0; width: min(720px, 100%); z-index: 5; border-left: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); overflow-y: auto; }
+#caScreen .ca-gaveta[hidden] { display: none; }
+#caScreen .ca-detalhe { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 18px; }
+#caScreen .ca-detalhe > header { display: flex; align-items: center; justify-content: space-between; }
+#caScreen .ca-detalhe h2 { margin: 0; font-size: 14px; }
+#caScreen .ca-detalhe h3 { margin: 4px 0 0; font-size: 12.5px; }
+#caScreen .ca-quote { margin: 0; padding: 8px 10px; border-left: 3px solid var(--line-2); background: var(--hover); color: var(--fg-2); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; }
+#caScreen .ca-quote span { display: block; margin-bottom: 2px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+#caScreen .ca-caminho { overflow-wrap: anywhere; color: var(--fg-2); }
+#caScreen .ca-acoes { display: flex; gap: 8px; }
+#caScreen .ca-titulo-cmd { margin: 0; font-size: 13px; }
+#caScreen .ca-diff, #caScreen .ca-pre { margin: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-2); font-family: var(--mono); font-size: 12px; line-height: 1.5; overflow: auto; max-height: 60vh; }
+#caScreen .ca-pre { padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+#caScreen .ca-saida { max-height: 40vh; color: var(--fg-2); }
+#caScreen .ca-dl { padding: 0 10px; white-space: pre; min-width: max-content; }
+#caScreen .ca-dl.a { background: color-mix(in srgb, var(--ca-add) 14%, transparent); }
+#caScreen .ca-dl.d { background: color-mix(in srgb, var(--ca-del) 14%, transparent); }
+#caScreen .ca-dl.h { color: var(--muted); background: var(--hover); }
+#caScreen .ca-vistas { display: flex; gap: 2px; margin-left: 8px; }
+#caScreen .ca-vista { height: 30px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--fg-2); font: inherit; font-weight: 500; cursor: pointer; }
+#caScreen .ca-vista:hover { color: var(--fg); }
+#caScreen .ca-vista.on { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+#caScreen .ca-corpo.cheio { grid-template-columns: 1fr; }
+#caScreen .ca-check-risco { color: var(--warn); }
+#caScreen .ca-faixa { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: var(--r); background: var(--hover); }
+#caScreen .ca-faixa > span { margin-right: auto; color: var(--fg-2); }
+#caScreen .ca-chamado { margin-right: 6px; padding: 0 7px; border: 1px solid var(--accent); border-radius: 4px; background: none; color: var(--accent); font: inherit; font-family: var(--mono); font-size: 11px; line-height: 18px; cursor: pointer; }
+#caScreen .ca-chamado:hover { background: var(--accent); color: var(--bg); }
+#caScreen .ca-bloco-acoes { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+#caScreen .ca-bloco-acoes .ca-link { margin-left: 0; font-size: 11.5px; }
+#caScreen .ca-meta .ca-ruim, #caScreen .ca-ruim { color: var(--ca-del); }
+#caScreen .ca-vezes { margin-left: 6px; padding: 0 5px; border-radius: 4px; background: var(--hover); color: var(--fg-2); font-family: inherit; font-size: 10.5px; }
+#caScreen .ca-dur, #caScreen .ca-rep { flex: none; color: var(--muted); font-size: 11px; }
+#caScreen .ca-rep { color: var(--warn); }
+#caScreen .ca-risco { padding: 0 7px; border-radius: 9px; background: color-mix(in srgb, var(--ca-del) 18%, transparent); color: var(--ca-del); font-size: 11px; line-height: 17px; white-space: nowrap; }
+#caScreen .ca-ev.sensivel { box-shadow: inset 2px 0 0 var(--ca-del); }
+#caScreen .ca-aviso { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--warn); background: var(--hover); color: var(--fg-2); font-size: 12px; }
+#caScreen .ca-arq-pedido { border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-2); }
+#caScreen .ca-arq-pedido > summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; cursor: pointer; }
+#caScreen .ca-arq-pedido > :not(summary) { margin: 0 10px 10px; }
+#caScreen .ca-arq-pedido .ca-diff { max-height: 45vh; }
+#caScreen .ca-cmds { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+#caScreen .ca-cmds li { display: flex; gap: 8px; align-items: center; padding: 3px 6px; border-radius: var(--r); cursor: pointer; font-size: 12px; }
+#caScreen .ca-cmds li:hover { background: var(--hover); }
+#caScreen .ca-cmds li span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#caScreen .ca-cmds time { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+#caScreen .ca-feito { margin: 0; padding-left: 18px; line-height: 1.7; }
+#caScreen .ca-arq-topo { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+#caScreen .ca-arq-topo h2 { margin: 0 0 6px; font-size: 13px; overflow-wrap: anywhere; }
+#caScreen .ca-versoes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+#caScreen .ca-versoes details { border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+#caScreen .ca-versoes summary { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; }
+#caScreen .ca-versoes summary time { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+#caScreen .ca-ver-pedido-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-2); font-size: 12px; }
+#caScreen .ca-versoes details > :not(summary) { margin: 0 12px 10px; }
+#caScreen .ca-versoes .ca-acoes { align-items: center; flex-wrap: wrap; }
+#caScreen .ca-acoes .chip:disabled { opacity: .45; cursor: not-allowed; }
+#caScreen .ca-totais { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+#caScreen .ca-totais > div { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+#caScreen .ca-totais b { font-size: 18px; }
+#caScreen .ca-totais span { color: var(--muted); font-size: 11.5px; }
+#caScreen .ca-tabela { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+#caScreen .ca-tabela th { position: sticky; top: 0; padding: 6px 8px; background: var(--bg); color: var(--muted); font-size: 11px; font-weight: 600; text-align: left; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--line); }
+#caScreen .ca-tabela td { padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+#caScreen .ca-tabela td:first-child { white-space: normal; }
+#caScreen .ca-tabela tbody tr { cursor: pointer; }
+#caScreen .ca-tabela tbody tr:hover { background: var(--hover); }
+#caAvisos { position: fixed; right: 18px; bottom: 96px; z-index: 9000; display: grid; gap: 8px; width: min(380px, calc(100vw - 36px)); }
+#caAvisos .ca-aviso-card { --ca-del: #f87171; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r); background: var(--panel); color: var(--fg); box-shadow: var(--shadow); font-size: 12.5px; transition: opacity .2s; }
+#caAvisos .ca-aviso-card.risco { border-left-color: var(--ca-del); }
+#caAvisos .ca-aviso-card.out { opacity: 0; }
+#caAvisos .ca-av-t { font-weight: 600; margin-bottom: 2px; }
+#caAvisos .ca-av-d { color: var(--fg-2); overflow-wrap: anywhere; margin-bottom: 8px; }
+#caAvisos .ca-av-b { display: flex; gap: 6px; }
+.ca-st-i { width: 13px; height: 13px; vertical-align: -2px; }
+.ca-st-risco { color: #f87171; font-weight: 600; }
+.monaco-editor .ca-gut { margin-left: 3px; width: 3px !important; background: #d97757; }
+.monaco-editor .ca-linha-claude { background: color-mix(in srgb, #d97757 7%, transparent); }
+#caScreen .ca-arq-pedido, #caScreen .ca-versoes details { min-width: 0; }
+#caScreen .ca-arq-pedido .ca-diff, #caScreen .ca-versoes .ca-diff { max-width: 100%; }
+#caScreen .ca-chamado.herdado { border-style: dashed; opacity: .75; }
+#caScreen .ca-chamado.manual { display: inline-flex; align-items: stretch; padding: 0; border-style: solid; cursor: default; }
+#caScreen .ca-chamado.manual:hover { background: none; color: var(--accent); }
+#caScreen .ca-chamado-nome, #caScreen .ca-chamado-tirar { padding: 0 6px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+#caScreen .ca-chamado-nome:hover, #caScreen .ca-chamado-tirar:hover { background: var(--accent); color: var(--bg); }
+#caScreen .ca-chamado-tirar { border-left: 1px solid var(--accent); }

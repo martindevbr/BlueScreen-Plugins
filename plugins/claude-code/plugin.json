@@ -1,0 +1,8 @@
+{
+  "id": "claude-code",
+  "name": "Claude Code",
+  "description": "Claude Code dentro do BlueScreen: conversas em abas, histórico das sessões, permissões na tela, processos que ele abriu e respostas com as cores do tema.",
+  "version": "1.1.0",
+  "order": 40,
+  "server": "server.mjs"
+}

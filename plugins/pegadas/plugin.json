@@ -1,0 +1,29 @@
+{
+  "id": "pegadas",
+  "name": "Pegadas",
+  "description": "Tudo o que o Claude mudou, em qualquer sessão: arquivos editados ou criados (com o diff), extensões do BlueScreen, projetos, skills, memória e comandos rodados, agrupados pelo pedido que gerou cada ação. Desfaz edição ou pedido inteiro (com backup), filtra por chamado, destaca ações sensíveis, mostra consumo de tokens, avisa ao vivo e marca no editor as linhas que o Claude mudou. Ctrl+Alt+A.",
+  "version": "2.0.0",
+  "icon": "icon.svg",
+  "order": 59,
+  "server": "server.mjs",
+  "settings": [
+    {
+      "key": "pasta",
+      "label": "Pasta dos transcripts do Claude Code",
+      "default": "",
+      "help": "Vazio: ~/.claude/projects"
+    },
+    {
+      "key": "dias",
+      "label": "Dias de histórico carregados",
+      "default": "30",
+      "help": "Quanto mais dias, mais demora para subir na primeira vez."
+    },
+    {
+      "key": "chamados",
+      "label": "Padrão dos números de chamado (regex)",
+      "default": "",
+      "help": "Vazio: chaves no formato PROJ-123 (Jira, DEM-001 do Dashboard). Outro sistema, por exemplo: \\b(?:TICKET|REQ)\\d{5,}\\b"
+    }
+  ]
+}

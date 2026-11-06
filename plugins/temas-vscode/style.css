@@ -1,0 +1,5 @@
+.tvs-top { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.tvs-top input { width: 100%; height: 26px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--bg); color: var(--fg); font-size: 12px; }
+.tvs-err { padding: 6px 10px; color: var(--del); font-size: 12px; }
+.tvs-mode { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--line-2); }
+.tvs-mode.dark { background: #1E1E1E; } .tvs-mode.light { background: #F5F5F5; }

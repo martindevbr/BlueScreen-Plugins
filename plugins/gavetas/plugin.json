@@ -1,0 +1,8 @@
+{
+  "id": "gavetas",
+  "name": "Gavetas",
+  "description": "Gavetas com nome e cor na barra lateral para agrupar os painéis (Claude Code, Dashboard, Pegadas...). Botão direito num ícone da barra › Colocar na gaveta.",
+  "version": "2.0.0",
+  "icon": "icon.svg",
+  "order": 35
+}

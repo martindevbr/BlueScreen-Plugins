@@ -1,0 +1,7 @@
+{
+  "id": "temas-vscode",
+  "name": "Temas do VS Code",
+  "description": "Usa no BlueScreen os temas instalados no VS Code, Cursor e Antigravity (ou um .json de tema): cores da interface e da sintaxe viram uma predefinição da Aparência.",
+  "version": "1.1.0",
+  "order": 80
+}
