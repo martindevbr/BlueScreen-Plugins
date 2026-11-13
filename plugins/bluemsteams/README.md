@@ -1,10 +1,26 @@
 # BlueMSTeamsAutomator
 
+<!-- ficha:inicio (gerada por ferramentas/plugins.mjs: não edite à mão) -->
+| | |
+|---|---|
+| **Autor** | Martin Hartfelder |
+| **Versão** | 1.0.0 |
+| **Licença** | MIT |
+| **Categoria** | Integrações |
+| **Precisa de** | BlueScreen 2.1.33 ou mais novo · Node.js 18+ · plugin `automator` |
+| **Automator** | 19 nós (categoria Teams) |
+| **Código** | [plugins/bluemsteams](https://github.com/martindevbr/BlueScreen-Plugins/tree/main/plugins/bluemsteams) |
+<!-- ficha:fim -->
+
 O Microsoft Teams ligado ao BlueScreen e ao Automator: avisar incidente num canal, mandar cartões prontos (incidente, testes, deploy, aprovação), conversar em chat, responder em thread, mencionar pessoas, ler mensagens, reagir a mensagens novas, criar reunião de war room, mudar a presença e mandar arquivos. Traz 19 nós para o Automator, na categoria **Teams**.
 
 Precisa do Node.js 18 ou mais novo (o servidor do plugin é um `server.mjs`) e do plugin Automator ligado.
 
-## Onde fica
+## Como usar
+
+Abra o painel **Teams** na barra da esquerda e ligue a forma que você tiver (veja [As três formas de ligar](#as-três-formas-de-ligar)): links diretos funcionam sem nada, o webhook dos Workflows envia sem login, e a conta Microsoft libera ler, responder, presença, reuniões e arquivos. Depois, escreva pela aba **Teams**, pelo **Buscar em tudo** ou monte fluxos com os [nós do Automator](#nós-do-automator-categoria-teams).
+
+### Onde fica
 
 | | |
 |---|---|
@@ -13,15 +29,15 @@ Precisa do Node.js 18 ou mais novo (o servidor do plugin é um `server.mjs`) e d
 | **Buscar em tudo** | "Teams: …" para escrever, alerta de incidente, resultado de testes, deploy, mandar a seleção do editor, presença e war room |
 | **Árvore de arquivos** | botão direito num arquivo › **Enviar para o Teams…** |
 
-## As três formas de ligar
+### As três formas de ligar
 
 O plugin funciona com a que você tiver.
 
-### 1. Links diretos (sem nada)
+#### 1. Links diretos (sem nada)
 
 Abre o Teams neste PC num chat, numa chamada, numa chamada de vídeo ou no agendamento de uma reunião, já com as pessoas e a mensagem. Não envia nada sozinho.
 
-### 2. Webhook dos Workflows (sem login e sem TI)
+#### 2. Webhook dos Workflows (sem login e sem TI)
 
 Envia texto e cartões para um canal ou chat, em nome do fluxo.
 
@@ -31,7 +47,7 @@ Envia texto e cartões para um canal ou chat, em nome do fluxo.
 
 A URL funciona como a senha do canal: fica cifrada no seu PC (`plugin.secrets`) e não vai para os fluxos, que usam só o apelido. URLs dos conectores antigos do Office 365 (`webhook.office.com`) são recusadas, porque a Microsoft aposentou esses conectores. Por webhook não dá para ler mensagens nem mandar arquivo, e os botões dos cartões só abrem links.
 
-### 3. Conta Microsoft (Microsoft Graph)
+#### 3. Conta Microsoft (Microsoft Graph)
 
 Envia em seu nome, lê canais e chats, responde em thread, muda a presença, cria reunião e manda arquivos. Precisa de um app registrado no Microsoft Entra (você ou o TI), uma vez só. A janela **Conta Microsoft** do painel mostra os passos com botões de copiar:
 
@@ -56,6 +72,19 @@ O login é por **código de dispositivo**: o plugin mostra um código, abre a p�
 Muitas empresas exigem que o administrador aprove qualquer app, mesmo com permissões que não pedem isso: aí o login responde com a mensagem traduzida (AADSTS65001/90094) e o plugin diz o que pedir ao TI. Se faltar uma permissão depois do login, a tela mostra qual e para quê.
 
 Os tokens ficam em `plugin.secrets` (cifrados pelo DPAPI do Windows) e são renovados sozinhos. As rotas do plugin só respondem no próprio PC.
+
+## Configurações
+
+Aba Plugins › engrenagem do BlueMSTeamsAutomator:
+
+| Configuração | O que muda |
+|---|---|
+| **Client ID do app** | o *ID do aplicativo (cliente)* do registro no Microsoft Entra. Vazio por padrão. Só serve para a conta Microsoft: links diretos e webhooks funcionam sem ele. A janela **Conta Microsoft** do painel também salva este campo |
+| **Tenant** | o *ID do diretório (locatário)* ou o domínio da empresa (`empresa.com.br`). O padrão, `organizations`, serve para app multilocatário |
+| **Ler mensagens de canal (o administrador precisa aprovar)** | desligado por padrão. Ligado, acrescenta a permissão `ChannelMessage.Read.All` ao login. Sem ela, o plugin envia em canais e lê chats, mas não lê canais. Depois de mudar, entre de novo |
+| **Abrir links do Teams** | onde abrem os links de chat, chamada, reunião e canal: **No aplicativo do Teams** (padrão, pelo protocolo `msteams:`) ou **No navegador** |
+| **Endereço do Graph (avançado)** | vazio usa `https://graph.microsoft.com/v1.0`. Mude só em nuvem nacional (GCC High, China) ou em teste |
+| **Endereço do login (avançado)** | vazio usa `https://login.microsoftonline.com` |
 
 ## Nós do Automator (categoria Teams)
 
@@ -117,3 +146,15 @@ node tests/logica.test.mjs
 ```
 
 Testa os links do Teams, os cartões e o cursor das mensagens novas. Para testar o resto sem conta, aponte o plugin para um servidor falso com variáveis de ambiente da IDE: `BLUEMSTEAMS_GRAPH` (no lugar de `https://graph.microsoft.com/v1.0`), `BLUEMSTEAMS_LOGIN` (no lugar de `https://login.microsoftonline.com`) e `BLUEMSTEAMS_NAO_ABRIR=1` (não abre o navegador nem o Teams; a rota `bluemsteams/teste` devolve o último endereço que abriria). Webhooks `http://` só são aceitos para `localhost`/`127.0.0.1`.
+
+## Autor e licença
+
+Feito por Martin Hartfelder. Distribuído sob a licença MIT.
+
+## Histórico de versões
+
+### 1.0.0
+
+- Primeira versão na loja: painel e aba Teams, com três formas de ligar (links diretos, webhook dos Workflows e conta Microsoft pelo Microsoft Graph).
+- Cartões prontos (incidente, testes, deploy, aprovação), chats, canais, respostas em thread, menções, leitura de mensagens, presença, reuniões e envio de arquivos.
+- 19 nós para o Automator, na categoria **Teams**, incluindo **Mensagens novas** para reagir ao que chega.

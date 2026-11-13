@@ -3,6 +3,10 @@
   "name": "Dashboard",
   "description": "Quadros e tarefas em colunas, no jeito do Jira. Quadros, colunas, status e campos dos cartões são configuráveis na própria tela (Configurar). Ctrl+Alt+B. Agentes: GET /api/dashboard/ajuda.",
   "version": "2.0.0",
+  "author": "Luiz Faria",
+  "license": "NOASSERTION",
+  "category": "produtividade",
+  "keywords": ["kanban", "tarefas", "quadro"],
   "icon": "icon.svg",
   "order": 57,
   "server": "server.mjs"

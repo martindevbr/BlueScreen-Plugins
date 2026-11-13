@@ -1,0 +1,39 @@
+name: Problema num plugin
+description: Um plugin da loja não funciona como devia.
+title: "[<plugin>] "
+labels: ["problema"]
+body:
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin e versão
+      description: Aparecem na aba Plugins (Alt+7), ao lado do nome.
+      placeholder: BlueSpotify 1.1.0
+    validations:
+      required: true
+  - type: input
+    id: ide
+    attributes:
+      label: Versão do BlueScreen e do Windows
+      placeholder: BlueScreen 2.1.34, Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: O que você fez
+      description: Passo a passo para acontecer de novo.
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que esperava e o que aconteceu
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Trecho do log
+      description: "~/.bluescreen/bluescreen.log, as linhas do momento do problema. Confira se não há tokens ou dados pessoais antes de colar."
+      render: text

@@ -1,9 +1,12 @@
 {
   "id": "qautils",
   "name": "QAutils",
-  "description": "Cenários de QA (Gherkin/Cucumber): painel por pasta e por chamado, quadro de execução na aba fixa (arrastar o cartão muda o status; cobertura por chamado, tag ou pasta), feature nova no padrão do time, autocompletar com os passos do projeto, aviso de passo parecido, Contexto automático, renumeração dos CTs, formatação, execução manual (Passou/Falhou/Bloqueado) com evidências coladas, relatório de evidências, casos de teste em CSV e relatório de bug do cenário que falhou. Em projetos automatizados: steps sem definição, ir para a definição, gerar a definição e executar feature, cenário ou tag.",
+  "description": "Cenários de QA (Gherkin/Cucumber): painel por pasta e chamado, quadro de execução, autocompletar de passos, evidências, relatórios, casos de teste em CSV e relatório de bug (Alt+9).",
   "version": "2.2.0",
-  "author": "BlueScreen",
+  "author": "Martin Hartfelder",
+  "license": "MIT",
+  "category": "qualidade",
+  "keywords": ["qa", "gherkin", "cucumber", "testes", "evidências"],
   "icon": "icon.svg",
   "order": 30,
   "settings": [

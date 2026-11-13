@@ -1,0 +1,31 @@
+name: Ideia de plugin ou de melhoria
+description: Um plugin novo ou um recurso para um plugin que já existe.
+labels: ["ideia"]
+body:
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin
+      description: Deixe vazio se for um plugin novo.
+      placeholder: bluespotify
+  - type: textarea
+    id: problema
+    attributes:
+      label: O que você quer resolver
+      description: A situação do dia a dia, antes da solução.
+    validations:
+      required: true
+  - type: textarea
+    id: ideia
+    attributes:
+      label: Como imagina que funcione
+  - type: dropdown
+    id: fazer
+    attributes:
+      label: Você quer escrever o código?
+      options:
+        - Sim, abro o pull request
+        - Posso ajudar a testar
+        - Não, só a ideia
+    validations:
+      required: true

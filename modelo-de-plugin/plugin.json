@@ -1,0 +1,16 @@
+{
+  "id": "{{id}}",
+  "name": "{{nome}}",
+  "description": "Uma frase dizendo o que o plugin faz, para o cartão da loja.",
+  "version": "0.1.0",
+  "author": "{{autor}}",
+  "license": "MIT",
+  "category": "{{categoria}}",
+  "keywords": [],
+  "icon": "icon.svg",
+  "order": 100,
+  "server": "server.mjs",
+  "settings": [
+    { "key": "saudacao", "label": "Saudação", "default": "Olá", "help": "O texto que o botão mostra." }
+  ]
+}

@@ -1,10 +1,58 @@
-# Pegadas (BlueScreen)
+# Pegadas
 
-Mostra tudo o que o Claude mudou, em qualquer sessão (terminal, app desktop ou o plugin Claude da IDE), e permite desfazer. Abre com Ctrl+Alt+A ou pelo ícone de pulso na barra lateral.
+<!-- ficha:inicio (gerada por ferramentas/plugins.mjs: não edite à mão) -->
+| | |
+|---|---|
+| **Autor** | Luiz Faria |
+| **Versão** | 2.0.0 |
+| **Licença** | a definir pelo autor |
+| **Categoria** | Inteligência artificial |
+| **Precisa de** | Node.js 18+ |
+| **Código** | [plugins/pegadas](https://github.com/martindevbr/BlueScreen-Plugins/tree/main/plugins/pegadas) |
+<!-- ficha:fim -->
+
+Mostra tudo o que o Claude mudou, em qualquer sessão (terminal, app desktop ou o plugin Claude da IDE), e permite desfazer. Agrupa pelo pedido: arquivos com diff, comandos, skills e memória, com destaque para as ações sensíveis, filtro por chamado e o consumo de tokens. Serve para quem trabalha com o Claude Code e quer saber, e poder voltar, o que ele fez.
+
+Precisa do Node.js 18 ou mais novo (o servidor do plugin é um `server.mjs`).
+
+## Como usar
+
+| | |
+|---|---|
+| **Barra lateral** | o ícone de pulso abre a tela do Pegadas |
+| **Atalho** | `Ctrl+Alt+A` abre o Pegadas |
+| **Barra de status** | "Claude: N mudança(s) hoje · N sensível(is)". Clique para abrir |
+| **Explorador** | botão direito num arquivo › **Histórico do Claude** |
+| **Editor** | botão direito › **Pegadas: histórico deste arquivo** |
+| **Buscar em tudo** | "Pegadas: abrir", "Pegadas: extensões do BlueScreen", "Pegadas: ações sensíveis", "Pegadas: sessões e consumo", "Pegadas: histórico do arquivo aberto" e "Pegadas: ligar ou desligar marcas no editor" |
+
+O uso mais comum: abra com `Ctrl+Alt+A`, ache o pedido na linha do tempo (pelo dia, pela busca ou pelo chamado na barra lateral), abra as "mudanças do pedido" para ver o diff de cada arquivo e, se for o caso, desfaça o pedido inteiro ou só uma ação.
+
+### Telas
+
+- **Linha do tempo**: pedidos com duração, tokens, modelos, falhas, comandos repetidos e ações sensíveis. Cada pedido abre o diff consolidado por arquivo ("mudanças do pedido"), pode ser desfeito inteiro e gera um resumo em texto.
+- **Sessões e consumo**: tokens de entrada, saída e cache por sessão (sem repetir a mesma mensagem), modelos e falhas.
+- **Histórico do arquivo**: todas as versões que o Claude produziu de um arquivo, reconstruídas a partir do transcript e do disco. Abre também pelo menu de contexto do explorador (**Histórico do Claude**) e pela ação do editor **Pegadas: histórico deste arquivo**.
+
+### Ao vivo
+
+- Barra de status: "Claude: N mudança(s) hoje · N sensível(is)".
+- Aviso no canto quando o Claude mexe numa extensão ou faz algo sensível, com **Ver**, **Desfazer** e **Fechar**; some em 15 s.
+- No editor, as linhas que o Claude editou nos últimos 7 dias ganham marca na margem ("Pegadas: ligar ou desligar marcas no editor" liga e desliga).
+
+## Configurações
+
+Aba Plugins › engrenagem do Pegadas:
+
+| Configuração | O que muda |
+|---|---|
+| **Pasta dos transcripts do Claude Code** | onde o plugin procura os transcripts (`*.jsonl`). Vazio: `~/.claude/projects`. Mude só se o Claude Code grava em outro lugar |
+| **Dias de histórico carregados** | quantos dias para trás o plugin lê (padrão: 30). Quanto mais dias, mais demora para subir na primeira vez |
+| **Padrão dos números de chamado (regex)** | a expressão regular que reconhece números de chamado no texto do pedido. Vazio: chaves no formato PROJ-123 (Jira, DEM-001 do Dashboard). Outro sistema, por exemplo: `\b(?:TICKET\|REQ)\d{5,}\b` |
 
 ## De onde vem
 
-Dos transcripts do Claude Code em `~/.claude/projects/**/*.jsonl`, inclusive os de subagentes. O plugin só lê esses arquivos: não precisa de hook, não muda a configuração do Claude e pega também o que foi feito antes de ele ser instalado (até o limite de dias das configurações, 30 por padrão). A primeira leitura percorre os arquivos inteiros; depois lê só o que foi acrescentado, a cada 2 s no máximo. A tela confere a cada 4 s.
+Dos transcripts do Claude Code em `~/.claude/projects/**/*.jsonl` (ou na pasta das configurações), inclusive os de subagentes. O plugin só lê esses arquivos: não precisa de hook, não muda a configuração do Claude e pega também o que foi feito antes de ele ser instalado (até o limite de dias das configurações, 30 por padrão). A primeira leitura percorre os arquivos inteiros; depois lê só o que foi acrescentado, a cada 2 s no máximo. A tela confere a cada 4 s.
 
 ## O que entra
 
@@ -14,15 +62,13 @@ Dos transcripts do Claude Code em `~/.claude/projects/**/*.jsonl`, inclusive os 
 
 Cada ação fica sob o pedido que a gerou, e os pedidos sob o dia. Edições seguidas no mesmo arquivo aparecem juntas (×N).
 
-## Telas
-
-- **Linha do tempo**: pedidos com duração, tokens, modelos, falhas, comandos repetidos e ações sensíveis. Cada pedido abre o diff consolidado por arquivo ("mudanças do pedido"), pode ser desfeito inteiro e gera um resumo em texto.
-- **Sessões e consumo**: tokens de entrada, saída e cache por sessão (sem repetir a mesma mensagem), modelos e falhas.
-- **Histórico do arquivo**: todas as versões que o Claude produziu de um arquivo, reconstruídas a partir do transcript e do disco. Abre também pelo menu de contexto do explorador ("Histórico do Claude") e pela ação do editor "Claude: histórico deste arquivo".
-
 ## Chamados
 
-Números de chamado citados no pedido viram filtro na barra lateral. O padrão é uma regex nas configurações do plugin; vazio, reconhece chaves no formato PROJ-123, como as do Jira e o DEM-001 do Dashboard. O pedido seguinte, em até 30 min e sem número próprio, herda o chamado (borda tracejada). Sem número no texto, dá para marcar à mão: **+ chamado no pedido** ou **+ chamado na sessão** aceita um número ou um nome livre ("login do Viagem"), que vira filtro igual a um chamado; o × no selo tira a marca. As marcas ficam em `plugin-data/pegadas/rotulos.json`. A busca de texto também procura no texto do pedido. O resumo por chamado pode ser copiado ou registrado no Dashboard, e a tarefa do Dashboard tem o botão "Pegadas".
+Números de chamado citados no pedido viram filtro na barra lateral. O padrão é uma regex nas configurações do plugin; vazio, reconhece chaves no formato PROJ-123, como as do Jira e o DEM-001 do Dashboard. O pedido seguinte, em até 30 min e sem número próprio, herda o chamado (borda tracejada).
+
+Sem número no texto, dá para marcar à mão: **+ chamado no pedido** ou **+ chamado na sessão** aceita um número ou um nome livre ("login do Viagem"), que vira filtro igual a um chamado; o × no selo tira a marca. As marcas ficam em `plugin-data/pegadas/rotulos.json`. A busca de texto também procura no texto do pedido.
+
+O resumo por chamado pode ser copiado ou registrado no Dashboard, e a tarefa do Dashboard tem o botão **Pegadas**.
 
 ## Ações sensíveis
 
@@ -31,12 +77,6 @@ Marcadas em vermelho e filtráveis em "só sensíveis": configuração, credenci
 ## Desfazer
 
 Escolhe-se o estado "antes" ou "depois" de uma ação, ou o pedido inteiro, e a prévia mostra o diff de cada arquivo com caixa de seleção. Só grava se o arquivo no disco ainda estiver como o plugin espera (hash); se mudou depois, avisa e pula. Antes de gravar, copia o estado atual para `plugin-data/pegadas/backups/<data-hora>/` com um `manifesto.json`. Arquivo criado pelo Claude é apagado ao desfazer. Abas abertas com alteração não salva geram aviso.
-
-## Ao vivo
-
-- Barra de status: "Claude: N mudança(s) hoje · N sensível(is)".
-- Aviso no canto quando o Claude mexe numa extensão ou faz algo sensível, com Ver, Desfazer e Fechar; some em 15 s.
-- No editor, as linhas que o Claude editou nos últimos 7 dias ganham marca na margem.
 
 ## Alvos
 
@@ -50,7 +90,7 @@ Escolhe-se o estado "antes" ou "depois" de uma ação, ou o pedido inteiro, e a 
 
 Comando que não cita nenhum desses caminhos aparece em "Sem alvo".
 
-## Limites
+## Limites conhecidos
 
 - A classificação de comandos (consulta, sensível, alvo) é por heurística sobre o texto do comando; o que um script faz por dentro não aparece.
 - Desfazer só cobre Edit e Write. Mudança feita por comando aparece, mas não volta pelo plugin.
@@ -63,3 +103,16 @@ Comando que não cita nenhum desses caminhos aparece em "Sem alvo".
 ## Instalar em outra máquina
 
 Copiar a pasta `pegadas` inteira para `%USERPROFILE%\.bluescreen\plugins\` e reabrir o BlueScreen (ou ligar o plugin na aba Plugins). Precisa do Node instalado (o servidor é `server.mjs`) e do Claude Code já usado naquela máquina, para existir `~/.claude/projects`. Não usa token nem cofre. O botão no Dashboard e o registro de resumo só aparecem se o plugin Dashboard também estiver instalado.
+
+## Autor e licença
+
+Feito por Luiz Faria.
+
+A licença ainda não foi definida pelo autor (`NOASSERTION` no `plugin.json`): até ele escolher uma, o código não pode ser reaproveitado fora do BlueScreen.
+
+## Histórico de versões
+
+### 2.0.0
+
+- Marcar pedido ou sessão com um chamado ou um nome livre (**+ chamado no pedido**, **+ chamado na sessão**), guardado em `rotulos.json`; a busca de texto passa a procurar também no texto do pedido.
+- Versão publicada na loja (a primeira registrada neste repositório).
