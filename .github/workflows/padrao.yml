@@ -1,0 +1,44 @@
+# Confere o padrão dos plugins em todo pull request e em todo push no main (a loja do BlueScreen lê o main direto).
+# É o mesmo que "node ferramentas/plugins.mjs tudo" na sua máquina, mais a conferência de versão nos pull requests.
+name: Padrão dos plugins
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: padrao-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  padrao:
+    name: Padrão dos plugins
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # a conferência de versão compara com o main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validar manifestos, READMEs, ícones, nós, sintaxe e segredos
+        run: node ferramentas/plugins.mjs validar
+
+      - name: Testes dos plugins
+        run: node ferramentas/plugins.mjs testes
+
+      - name: Fichas dos READMEs e tabela em dia
+        run: node ferramentas/plugins.mjs gerar --conferir
+
+      - name: Versão sobe quando o código muda
+        if: github.event_name == 'pull_request'
+        run: node ferramentas/plugins.mjs versoes --base origin/${{ github.base_ref }}

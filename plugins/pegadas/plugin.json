@@ -1,8 +1,12 @@
 {
   "id": "pegadas",
   "name": "Pegadas",
-  "description": "Tudo o que o Claude mudou, em qualquer sessão: arquivos editados ou criados (com o diff), extensões do BlueScreen, projetos, skills, memória e comandos rodados, agrupados pelo pedido que gerou cada ação. Desfaz edição ou pedido inteiro (com backup), filtra por chamado, destaca ações sensíveis, mostra consumo de tokens, avisa ao vivo e marca no editor as linhas que o Claude mudou. Ctrl+Alt+A.",
+  "description": "Tudo o que o Claude mudou, agrupado pelo pedido: arquivos com diff, comandos, skills e memória. Desfaz edição ou pedido inteiro, filtra por chamado, destaca ações sensíveis e mostra o consumo de tokens (Ctrl+Alt+A).",
   "version": "2.0.0",
+  "author": "Luiz Faria",
+  "license": "NOASSERTION",
+  "category": "ia",
+  "keywords": ["claude", "diff", "desfazer", "tokens", "auditoria"],
   "icon": "icon.svg",
   "order": 59,
   "server": "server.mjs",

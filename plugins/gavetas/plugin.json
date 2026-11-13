@@ -3,6 +3,10 @@
   "name": "Gavetas",
   "description": "Gavetas com nome e cor na barra lateral para agrupar os painéis (Claude Code, Dashboard, Pegadas...). Botão direito num ícone da barra › Colocar na gaveta.",
   "version": "2.0.0",
+  "author": "Luiz Faria",
+  "license": "NOASSERTION",
+  "category": "produtividade",
+  "keywords": ["painéis", "barra lateral", "organizar"],
   "icon": "icon.svg",
   "order": 35
 }

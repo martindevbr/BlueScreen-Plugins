@@ -1,10 +1,26 @@
 # BlueSpotify
 
+<!-- ficha:inicio (gerada por ferramentas/plugins.mjs: não edite à mão) -->
+| | |
+|---|---|
+| **Autor** | Martin Hartfelder |
+| **Versão** | 1.1.0 |
+| **Licença** | MIT |
+| **Categoria** | Música e mídia |
+| **Precisa de** | BlueScreen 2.1.33 ou mais novo · Node.js 18+ |
+| **Automator** | 11 nós (categoria Spotify) |
+| **Código** | [plugins/bluespotify](https://github.com/martindevbr/BlueScreen-Plugins/tree/main/plugins/bluespotify) |
+<!-- ficha:fim -->
+
 O Spotify dentro do BlueScreen, mais leve que o aplicativo: a sua biblioteca (playlists, Curtidas, álbuns, artistas, tocadas recentemente), busca, fila, dispositivos, volume e um player compacto no rodapé. Toca dentro da IDE, sem precisar do aplicativo do Spotify instalado (conta Premium), ou controla o Spotify aberto no PC, no celular ou numa caixa de som. Traz também 11 nós para o Automator, na categoria **Spotify**.
 
 Precisa do Node.js 18 ou mais novo (o servidor do plugin é um `server.mjs`).
 
-## Onde fica
+## Como usar
+
+Na primeira vez, crie o seu app no Spotify e cole o Client ID na aba BlueSpotify (veja [Primeira vez: três passos](#primeira-vez-três-passos)). Depois disso, `Ctrl+Alt+M` abre a aba, o painel da esquerda toca as suas listas e o rodapé mostra o que está tocando. Para escolher onde a música sai (aqui no PC ou em outro aparelho), veja [Tocar: aqui ou em outro aparelho](#tocar-aqui-ou-em-outro-aparelho).
+
+### Onde fica
 
 | | |
 |---|---|
@@ -14,7 +30,7 @@ Precisa do Node.js 18 ou mais novo (o servidor do plugin é um `server.mjs`).
 | **Teclas** | `Ctrl+Alt+P` toca ou pausa, `Ctrl+Alt+.` próxima, `Ctrl+Alt+,` anterior. Na aba: `Espaço` toca ou pausa, `/` busca, setas e `Enter` escolhem a faixa, `Alt+←` volta |
 | **Buscar em tudo** | "BlueSpotify: …" para abrir, tocar, pular, curtir, buscar, ver a fila, trocar de dispositivo e abrir o player compacto |
 
-## Primeira vez: três passos
+### Primeira vez: três passos
 
 O Spotify não deixa mais um app servir a todo mundo: cada pessoa cria o seu, de graça, no painel de desenvolvedores. A aba BlueSpotify mostra estes passos com os botões de copiar:
 
@@ -24,11 +40,22 @@ O Spotify não deixa mais um app servir a todo mundo: cada pessoa cria o seu, de
 
 Regras do Spotify para apps novos (modo de desenvolvimento, desde fevereiro de 2026): a conta que cria o app precisa ser **Premium**, e o app vale para ela e para até 5 contas convidadas em *User Management*. A porta 8974 pode ser trocada nas configurações do plugin (Aba Plugins › engrenagem); troque também no painel do Spotify.
 
-## Tocar: aqui ou em outro aparelho
+### Tocar: aqui ou em outro aparelho
 
 - **Aqui no BlueScreen, sem o aplicativo do Spotify.** Com Premium, o plugin usa o Web Playback SDK do Spotify e a IDE aparece como um dispositivo do Spotify Connect chamado **BlueScreen**. O SDK exige o DRM Widevine, que o WebView2 normalmente não tem: nesse caso o servidor do plugin abre o **Microsoft Edge** (que vem com o Windows; sem ele, o Google Chrome) **escondido**, com um perfil só dele em `<pasta de dados>/tocador`, e é ele que toca. Não aparece janela nem mexe no Edge que você usa; ele fecha junto com o plugin. Se algo der errado, **Dispositivos** mostra o motivo e o botão *Tocar neste PC de novo*. Desligue em *Tocar aqui no BlueScreen* se preferir só controlar.
 - **Em outro aparelho (Spotify Connect).** O player controla o Spotify aberto no PC, no celular, na TV ou na caixa de som. **Dispositivos** (no player ou no player compacto) lista os aparelhos e leva a música para o escolhido. Se nada estiver tocando em lugar nenhum, o primeiro play escolhe um aparelho aberto sozinho.
 - **Conta Free.** O Spotify não deixa apps tocarem nem controlarem a reprodução sem Premium. A faixa no topo avisa, e os botões de tocar passam a abrir a faixa no aplicativo do Spotify.
+
+## Configurações
+
+Aba Plugins › engrenagem do BlueSpotify:
+
+| Configuração | O que muda |
+|---|---|
+| **Client ID do seu app no Spotify** | o Client ID do app que você criou em [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard). Vazio por padrão; a aba BlueSpotify também salva este campo no botão **Salvar e conectar** |
+| **Porta do retorno do login** | a porta do endereço de retorno do login (padrão `8974`). O endereço cadastrado no app do Spotify precisa ser `http://127.0.0.1:<porta>/callback`: se trocar aqui, troque lá também. Use quando outro programa já ocupa a 8974 |
+| **Tocar aqui no BlueScreen (Premium)** | ligado (padrão), o BlueScreen vira um dispositivo do Spotify Connect e toca sem o aplicativo do Spotify instalado, usando o Microsoft Edge escondido quando o BlueScreen não tem o DRM do Spotify. Desligado, o BlueSpotify só controla outro dispositivo: o Spotify aberto no PC ou no celular |
+| **Mini player na barra de baixo** | ligado (padrão), o rodapé mostra o que está tocando e abre o player compacto. Desligado, o rodapé fica sem o BlueSpotify |
 
 ## Nós do Automator (categoria Spotify)
 
@@ -83,3 +110,21 @@ node tests/logica.test.mjs
 ```
 
 Para testar sem conta, aponte o plugin para um servidor falso com as variáveis de ambiente da IDE: `BLUESPOTIFY_API_BASE` (no lugar de `https://api.spotify.com/v1`), `BLUESPOTIFY_ACCOUNTS_BASE` (no lugar de `https://accounts.spotify.com`), `BLUESPOTIFY_SDK_URL` (o script do Web Playback SDK), `BLUESPOTIFY_NAVEGADOR` (o executável do navegador do player em segundo plano) e `BLUESPOTIFY_NAO_ABRIR=1` (não abre o navegador; a URL do login vai para o `bluescreen.log`). Nesse modo a tela aceita Client ID em qualquer formato.
+
+## Autor e licença
+
+Feito por Martin Hartfelder. Distribuído sob a licença MIT.
+
+## Histórico de versões
+
+### 1.1.0
+
+- Toca neste PC sem o aplicativo do Spotify instalado: quando o WebView2 do BlueScreen não tem o DRM Widevine que o Web Playback SDK exige, o servidor do plugin abre o Microsoft Edge (ou o Google Chrome) escondido, com um perfil só dele, e é ele que toca como o dispositivo **BlueScreen**.
+- **Dispositivos** mostra o motivo quando o player em segundo plano falha e ganhou o botão **Tocar neste PC de novo**.
+- Nova variável `BLUESPOTIFY_NAVEGADOR` para testes (o executável do navegador do player em segundo plano).
+
+### 1.0.0
+
+- Primeira versão na loja: biblioteca (playlists, Curtidas, álbuns, artistas, tocadas recentemente), busca, fila, dispositivos e volume, com painel, aba (`Ctrl+Alt+M`) e player compacto no rodapé.
+- Toca dentro da IDE pelo Web Playback SDK (Premium, quando o WebView2 tem o DRM) ou controla o Spotify aberto em outro aparelho pelo Spotify Connect.
+- 11 nós para o Automator, na categoria **Spotify**.

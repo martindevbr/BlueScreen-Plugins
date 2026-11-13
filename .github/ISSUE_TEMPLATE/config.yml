@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Problema no BlueScreen (não num plugin)
+    url: https://github.com/martindevbr/BlueScreen-IDE/issues
+    about: A IDE em si, a loja de plugins, o Automator, o editor.
+  - name: Como escrever um plugin
+    url: https://github.com/martindevbr/BlueScreen-IDE/blob/main/docs/PLUGINS.md
+    about: A API dos plugins, o servidor, o cofre e os nós do Automator.
