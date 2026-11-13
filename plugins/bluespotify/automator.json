@@ -1,0 +1,154 @@
+{
+  "nodes": [
+    {
+      "type": "tocar", "name": "Tocar", "category": "Spotify",
+      "desc": "Toca uma faixa, álbum, playlist ou artista, pelo nome ou pelo link.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado. Se o campo O que tocar ficar vazio, usa o texto que chega.",
+      "returns": "O que começou a tocar: tipo, nome, artista, link e URI.",
+      "sample": { "tipo": "faixa", "nome": "Bohemian Rhapsody", "artista": "Queen", "link": "https://open.spotify.com/track/7tFiyTwD0nx5a1eklYtX2J", "uri": "spotify:track:7tFiyTwD0nx5a1eklYtX2J" },
+      "params": { "o_que": "", "tipo": "auto", "dispositivo": "", "aleatorio": "manter" },
+      "fields": [
+        { "name": "o_que", "label": "O que tocar", "kind": "text", "placeholder": "Nome ou link do Spotify", "show": { "tipo": ["auto", "faixa", "album", "playlist", "artista"] } },
+        { "name": "tipo", "label": "Procurar por", "kind": "select", "options": [
+          { "value": "auto", "label": "Faixa (ou o que o link apontar)" }, { "value": "faixa", "label": "Faixa" }, { "value": "album", "label": "Álbum" },
+          { "value": "playlist", "label": "Playlist (as suas primeiro)" }, { "value": "artista", "label": "Artista" }, { "value": "curtidas", "label": "Minhas curtidas" } ] },
+        { "name": "aleatorio", "label": "Ordem aleatória", "kind": "select", "options": [{ "value": "manter", "label": "Como estiver" }, { "value": "sim", "label": "Ligar" }, { "value": "nao", "label": "Desligar" }] },
+        { "name": "dispositivo", "label": "Onde tocar", "kind": "text", "choicesFrom": "bluespotify/opcoes?tipo=dispositivos", "placeholder": "Vazio: o dispositivo ativo", "help": "Parte do nome do dispositivo, como PC, Celular ou BlueScreen." }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    },
+    {
+      "type": "pausar", "name": "Pausar ou retomar", "category": "Spotify",
+      "desc": "Pausa, retoma ou alterna a reprodução.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado (não é usado).",
+      "returns": "Se ficou tocando: { tocando }.",
+      "sample": { "tocando": false },
+      "params": { "acao": "alternar" },
+      "fields": [
+        { "name": "acao", "label": "Fazer", "kind": "select", "options": [{ "value": "alternar", "label": "Alternar" }, { "value": "pausar", "label": "Pausar" }, { "value": "retomar", "label": "Retomar" }] }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    },
+    {
+      "type": "pular", "name": "Próxima ou anterior", "category": "Spotify",
+      "desc": "Pula para a próxima faixa ou volta para a anterior.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado (não é usado).",
+      "returns": "A faixa que passou a tocar, no mesmo formato de O que está tocando.",
+      "sample": { "tocando": true, "faixa": "Under Pressure", "artista": "Queen, David Bowie", "album": "Hot Space", "link": "https://open.spotify.com/track/2fuCquhmrzHpu5xcA1ci9x", "uri": "spotify:track:2fuCquhmrzHpu5xcA1ci9x", "capa": "https://i.scdn.co/image/…", "posicao_s": 0, "duracao_s": 248, "dispositivo": "PC", "volume": 60, "aleatorio": false, "repetir": "off" },
+      "params": { "direcao": "proxima" },
+      "fields": [
+        { "name": "direcao", "label": "Ir para", "kind": "select", "options": [{ "value": "proxima", "label": "Próxima faixa" }, { "value": "anterior", "label": "Faixa anterior" }] }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    },
+    {
+      "type": "volume", "name": "Volume", "category": "Spotify",
+      "desc": "Define, aumenta ou diminui o volume do dispositivo ativo.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado. Dá para usar {{input}} no valor.",
+      "returns": "O volume que ficou, de 0 a 100: { volume }.",
+      "sample": { "volume": 40 },
+      "params": { "modo": "definir", "valor": 40 },
+      "fields": [
+        { "name": "modo", "label": "Fazer", "kind": "select", "options": [{ "value": "definir", "label": "Definir em" }, { "value": "aumentar", "label": "Aumentar" }, { "value": "diminuir", "label": "Diminuir" }] },
+        { "name": "valor", "label": "Quanto (0 a 100)", "kind": "number", "min": 0, "max": 100 }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    },
+    {
+      "type": "tocando", "name": "O que está tocando", "category": "Spotify",
+      "desc": "Devolve a faixa atual, o artista, o álbum e o dispositivo.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado (não é usado).",
+      "returns": "A faixa atual. Sem nada tocando, tocando vem falso e os textos vêm vazios.",
+      "sample": { "tocando": true, "faixa": "Bohemian Rhapsody", "artista": "Queen", "album": "A Night at the Opera", "link": "https://open.spotify.com/track/7tFiyTwD0nx5a1eklYtX2J", "uri": "spotify:track:7tFiyTwD0nx5a1eklYtX2J", "capa": "https://i.scdn.co/image/…", "posicao_s": 73, "duracao_s": 354, "dispositivo": "PC", "volume": 60, "aleatorio": false, "repetir": "off" },
+      "params": {},
+      "fields": [],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    },
+    {
+      "type": "buscar", "name": "Buscar", "category": "Spotify",
+      "desc": "Procura faixas, álbuns, artistas ou playlists no Spotify.",
+      "takes": "any", "gives": "list",
+      "expects": "Qualquer dado. Se o campo Procurar ficar vazio, usa o texto que chega.",
+      "returns": "Lista de resultados, cada um com tipo, nome, artista, link e URI.",
+      "sample": [{ "tipo": "faixa", "nome": "Bohemian Rhapsody", "artista": "Queen", "link": "https://open.spotify.com/track/7tFiyTwD0nx5a1eklYtX2J", "uri": "spotify:track:7tFiyTwD0nx5a1eklYtX2J" }],
+      "params": { "termo": "", "tipo": "faixa", "quantos": 5 },
+      "fields": [
+        { "name": "termo", "label": "Procurar", "kind": "text", "placeholder": "Nome da música, do artista…" },
+        { "name": "tipo", "label": "O quê", "kind": "select", "options": [{ "value": "faixa", "label": "Faixas" }, { "value": "album", "label": "Álbuns" }, { "value": "artista", "label": "Artistas" }, { "value": "playlist", "label": "Playlists" }] },
+        { "name": "quantos", "label": "Quantos resultados (até 10)", "kind": "number", "min": 1, "max": 10 }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    },
+    {
+      "type": "fila", "name": "Adicionar à fila", "category": "Spotify",
+      "desc": "Põe uma faixa na fila, pelo nome ou pelo link.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado. Se o campo Faixa ficar vazio, usa o texto que chega.",
+      "returns": "A faixa que entrou na fila: tipo, nome, artista, link e URI.",
+      "sample": { "tipo": "faixa", "nome": "Under Pressure", "artista": "Queen, David Bowie", "link": "https://open.spotify.com/track/2fuCquhmrzHpu5xcA1ci9x", "uri": "spotify:track:2fuCquhmrzHpu5xcA1ci9x" },
+      "params": { "o_que": "" },
+      "fields": [
+        { "name": "o_que", "label": "Faixa", "kind": "text", "placeholder": "Nome ou link do Spotify" }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    },
+    {
+      "type": "curtir", "name": "Curtir a faixa atual", "category": "Spotify",
+      "desc": "Põe a faixa que está tocando nas suas Curtidas, ou tira de lá.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado (não é usado).",
+      "returns": "A faixa e se ficou curtida: { nome, artista, link, uri, curtida }.",
+      "sample": { "tipo": "faixa", "nome": "Bohemian Rhapsody", "artista": "Queen", "link": "https://open.spotify.com/track/7tFiyTwD0nx5a1eklYtX2J", "uri": "spotify:track:7tFiyTwD0nx5a1eklYtX2J", "curtida": true },
+      "params": { "acao": "curtir" },
+      "fields": [
+        { "name": "acao", "label": "Fazer", "kind": "select", "options": [{ "value": "curtir", "label": "Curtir" }, { "value": "tirar", "label": "Tirar das curtidas" }] }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    },
+    {
+      "type": "playlist", "name": "Adicionar faixa a uma playlist", "category": "Spotify",
+      "desc": "Põe uma faixa (ou a que está tocando) numa playlist sua.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado. Com o campo Faixa vazio, usa o texto que chega; sem texto, a faixa que está tocando.",
+      "returns": "A faixa, a playlist e se ela entrou agora: { nome, artista, link, uri, playlist, adicionada }.",
+      "sample": { "tipo": "faixa", "nome": "Bohemian Rhapsody", "artista": "Queen", "link": "https://open.spotify.com/track/7tFiyTwD0nx5a1eklYtX2J", "uri": "spotify:track:7tFiyTwD0nx5a1eklYtX2J", "playlist": "Para programar", "adicionada": true },
+      "params": { "playlist": "", "faixa": "", "repetida": "nao" },
+      "fields": [
+        { "name": "playlist", "label": "Playlist", "kind": "text", "choicesFrom": "bluespotify/opcoes?tipo=playlists&minhas=1", "placeholder": "Nome ou link de uma playlist sua" },
+        { "name": "faixa", "label": "Faixa", "kind": "text", "placeholder": "Vazio: a que está tocando" },
+        { "name": "repetida", "label": "Se já estiver na playlist", "kind": "select", "options": [{ "value": "nao", "label": "Não adicionar de novo" }, { "value": "sim", "label": "Adicionar mesmo assim" }] }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 120000 }
+    },
+    {
+      "type": "dispositivo", "name": "Trocar de dispositivo", "category": "Spotify",
+      "desc": "Leva a reprodução para outro dispositivo: o PC, o celular, a caixa de som.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado. Se o campo Dispositivo ficar vazio, usa o texto que chega.",
+      "returns": "O dispositivo que passou a tocar: { dispositivo, tipo, volume }.",
+      "sample": { "dispositivo": "Celular", "tipo": "Smartphone", "volume": 40 },
+      "params": { "nome": "", "tocar": "sim" },
+      "fields": [
+        { "name": "nome", "label": "Dispositivo", "kind": "text", "choicesFrom": "bluespotify/opcoes?tipo=dispositivos", "placeholder": "Parte do nome: PC, Celular, BlueScreen…", "help": "O dispositivo precisa estar com o Spotify aberto. O nó Listar dispositivos mostra os nomes." },
+        { "name": "tocar", "label": "Ao chegar", "kind": "select", "options": [{ "value": "sim", "label": "Continuar tocando" }, { "value": "nao", "label": "Ficar pausado" }] }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    },
+    {
+      "type": "dispositivos", "name": "Listar dispositivos", "category": "Spotify",
+      "desc": "Lista os dispositivos com o Spotify aberto na sua conta.",
+      "takes": "any", "gives": "list",
+      "expects": "Qualquer dado (não é usado).",
+      "returns": "Lista de dispositivos: { dispositivo, tipo, ativo, volume }.",
+      "sample": [{ "dispositivo": "PC", "tipo": "Computer", "ativo": true, "volume": 60 }, { "dispositivo": "Celular", "tipo": "Smartphone", "ativo": false, "volume": 40 }],
+      "params": {},
+      "fields": [],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    }
+  ]
+}

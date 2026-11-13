@@ -1,0 +1,19 @@
+{
+  "id": "bluemsteams",
+  "name": "BlueMSTeamsAutomator",
+  "description": "Microsoft Teams dentro do BlueScreen: avisa incidente num canal, manda cartões (incidente, testes, deploy, aprovação), lê e responde mensagens, muda a sua presença, cria reunião de war room e manda arquivos. Funciona por webhook dos Workflows (sem login), pela conta Microsoft ou por links diretos, e traz 19 nós para o Automator, na categoria Teams.",
+  "version": "1.0.0",
+  "author": "Martin",
+  "icon": "icon.svg",
+  "order": 71,
+  "server": "server.mjs",
+  "requires": ["automator"],
+  "settings": [
+    { "key": "clientId", "label": "Client ID do app", "default": "", "help": "O \"ID do aplicativo (cliente)\" do registro no Microsoft Entra. Só para a conta Microsoft: links diretos e webhooks funcionam sem ele." },
+    { "key": "tenant", "label": "Tenant", "default": "organizations", "help": "O \"ID do diretório (locatário)\" ou o domínio da empresa (empresa.com.br). \"organizations\" serve para app multilocatário." },
+    { "key": "lerCanal", "label": "Ler mensagens de canal (o administrador precisa aprovar)", "type": "bool", "default": false, "help": "Acrescenta a permissão ChannelMessage.Read.All ao login. Sem ela, o plugin envia em canais e lê chats, mas não lê canais. Depois de mudar, entre de novo." },
+    { "key": "abrirCom", "label": "Abrir links do Teams", "type": "select", "default": "app", "options": [{ "value": "app", "label": "No aplicativo do Teams" }, { "value": "web", "label": "No navegador" }] },
+    { "key": "graphBase", "label": "Endereço do Graph (avançado)", "default": "", "help": "Vazio: https://graph.microsoft.com/v1.0. Mude só em nuvem nacional (GCC High, China) ou em teste." },
+    { "key": "loginBase", "label": "Endereço do login (avançado)", "default": "", "help": "Vazio: https://login.microsoftonline.com." }
+  ]
+}

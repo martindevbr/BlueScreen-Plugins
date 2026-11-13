@@ -1,0 +1,38 @@
+{
+  "id": "bluespotify",
+  "name": "BlueSpotify",
+  "description": "O Spotify dentro do BlueScreen, leve: suas playlists, curtidas, álbuns e artistas, busca, fila e um player que toca aqui mesmo (Premium) ou controla o Spotify do PC ou do celular. Mini player na barra de baixo e nós no Automator. Ctrl+Alt+M.",
+  "version": "1.0.0",
+  "author": "Martin",
+  "icon": "icon.svg",
+  "order": 70,
+  "server": "server.mjs",
+  "settings": [
+    {
+      "key": "clientId",
+      "label": "Client ID do seu app no Spotify",
+      "default": "",
+      "help": "Crie um app em developer.spotify.com/dashboard e copie o Client ID. O passo a passo está na tela do BlueSpotify."
+    },
+    {
+      "key": "porta",
+      "label": "Porta do retorno do login",
+      "type": "number",
+      "default": 8974,
+      "help": "O endereço de retorno cadastrado no app do Spotify precisa ser http://127.0.0.1:<porta>/callback."
+    },
+    {
+      "key": "local",
+      "label": "Tocar aqui no BlueScreen (Premium)",
+      "type": "bool",
+      "default": true,
+      "help": "Desligado, o BlueSpotify só controla outro dispositivo: o Spotify aberto no PC ou no celular."
+    },
+    {
+      "key": "mini",
+      "label": "Mini player na barra de baixo",
+      "type": "bool",
+      "default": true
+    }
+  ]
+}

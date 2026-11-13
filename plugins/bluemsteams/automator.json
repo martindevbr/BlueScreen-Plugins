@@ -1,0 +1,331 @@
+{
+  "nodes": [
+    {
+      "type": "mensagem", "name": "Enviar mensagem (webhook)", "category": "Teams",
+      "desc": "Publica um texto num canal ou chat do Teams pelo webhook dos Workflows, sem login.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado, para usar no texto com {{input}}.",
+      "returns": "Objeto com o destino usado. Por webhook o Teams não devolve o id da mensagem.",
+      "sample": { "ok": true, "via": "webhook", "to": "incidentes", "destino": "incidentes", "id": "", "link": "" },
+      "params": { "to": "", "title": "", "text": "{{input}}", "mention": "" },
+      "fields": [
+        { "name": "to", "label": "Webhook", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=webhook", "placeholder": "incidentes", "help": "Os webhooks salvos no painel Teams. A URL fica guardada no plugin, não no fluxo. Em Outro…, vale {{cred:nome}} com a URL guardada em Credenciais." },
+        { "name": "title", "label": "Título", "kind": "text", "placeholder": "vazio: sem título" },
+        { "name": "text", "label": "Mensagem", "kind": "area" },
+        { "name": "mention", "label": "Mencionar", "kind": "text", "placeholder": "ana@empresa.com, joao@empresa.com" }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "cartao", "name": "Enviar cartão", "category": "Teams",
+      "desc": "Publica um cartão pronto: alerta de incidente, resultado de testes, deploy, pedido de aprovação ou um cartão seu.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado, para preencher os campos com {{input.campo}} (o resultado do Testar site, por exemplo).",
+      "returns": "Objeto com o destino usado e, quando vai pela conta Microsoft, o id e o link da mensagem.",
+      "sample": { "ok": true, "via": "graph", "to": "canal:1f0c…/19:abc…@thread.tacv2", "destino": "sustentação", "id": "1731512345678", "conversa": "1731512345678", "link": "https://teams.microsoft.com/l/message/…" },
+      "params": { "to": "", "model": "incidente", "title": "", "severity": "sev2", "state": "Aberto", "service": "", "question": "", "app": "", "version": "", "env": "", "result": "ok", "passed": "", "failed": "", "skipped": "", "duration": "", "text": "", "failures": "", "owner": "", "link": "", "warroom": "", "yes_url": "", "no_url": "", "hint": "Responda nesta conversa com \"aprovado\" ou \"recusado\".", "color": "accent", "facts": [], "buttons": [], "mention": "" },
+      "fields": [
+        { "name": "to", "label": "Destino", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=webhook,canal,chat", "placeholder": "incidentes", "help": "Escolha na lista: os destinos salvos no painel Teams e, com a conta Microsoft, os canais dos seus times e os seus chats. Em Outro…, cole o link do canal ou escreva os e-mails das pessoas." },
+        { "name": "model", "label": "Modelo", "kind": "select", "options": [
+          { "value": "incidente", "label": "Alerta de incidente" }, { "value": "testes", "label": "Resultado de testes" }, { "value": "deploy", "label": "Deploy" },
+          { "value": "aprovacao", "label": "Pedido de aprovação" }, { "value": "livre", "label": "Personalizado" } ] },
+        { "name": "title", "label": "Título", "kind": "text", "show": { "model": ["incidente", "testes", "livre"] } },
+        { "name": "question", "label": "Pergunta", "kind": "text", "placeholder": "Posso publicar a versão 2.14.0 em produção?", "show": { "model": ["aprovacao"] } },
+        { "name": "app", "label": "Aplicação", "kind": "text", "show": { "model": ["deploy"] } },
+        { "name": "version", "label": "Versão", "kind": "text", "show": { "model": ["deploy"] } },
+        { "name": "result", "label": "Resultado", "kind": "select", "show": { "model": ["deploy"] }, "options": [
+          { "value": "ok", "label": "Sucesso" }, { "value": "falha", "label": "Falhou" }, { "value": "andamento", "label": "Em andamento" }, { "value": "rollback", "label": "Rollback" } ] },
+        { "name": "severity", "label": "Severidade", "kind": "select", "show": { "model": ["incidente"] }, "options": [
+          { "value": "sev1", "label": "SEV1 · Crítico" }, { "value": "sev2", "label": "SEV2 · Alto" }, { "value": "sev3", "label": "SEV3 · Médio" }, { "value": "sev4", "label": "SEV4 · Baixo" } ] },
+        { "name": "state", "label": "Estado", "kind": "select", "show": { "model": ["incidente"] }, "options": [
+          { "value": "Aberto", "label": "Aberto" }, { "value": "Investigando", "label": "Investigando" }, { "value": "Mitigado", "label": "Mitigado" }, { "value": "Resolvido", "label": "Resolvido" } ] },
+        { "name": "service", "label": "Serviço afetado", "kind": "text", "show": { "model": ["incidente"] } },
+        { "name": "passed", "label": "Passaram", "kind": "text", "placeholder": "{{input.passed}}", "show": { "model": ["testes"] } },
+        { "name": "failed", "label": "Falharam", "kind": "text", "placeholder": "{{input.failed}}", "show": { "model": ["testes"] } },
+        { "name": "skipped", "label": "Ignorados", "kind": "text", "placeholder": "{{input.skipped}}", "show": { "model": ["testes"] } },
+        { "name": "env", "label": "Ambiente", "kind": "text", "placeholder": "produção", "show": { "model": ["testes", "deploy"] } },
+        { "name": "duration", "label": "Duração", "kind": "text", "placeholder": "4 min 12 s", "show": { "model": ["testes"] } },
+        { "name": "text", "label": "Texto", "kind": "area", "show": { "model": ["incidente", "deploy", "aprovacao", "livre"] } },
+        { "name": "failures", "label": "Falhas (uma por linha)", "kind": "area", "show": { "model": ["testes"] } },
+        { "name": "owner", "label": "Responsável", "kind": "text", "show": { "model": ["incidente", "deploy"] } },
+        { "name": "link", "label": "Link do botão", "kind": "text", "placeholder": "https://…", "show": { "model": ["incidente", "testes", "deploy"] } },
+        { "name": "warroom", "label": "Link da war room", "kind": "text", "placeholder": "{{nodes.reuniao.link}}", "show": { "model": ["incidente"] } },
+        { "name": "yes_url", "label": "Link do botão Aprovar", "kind": "text", "placeholder": "https://…", "show": { "model": ["aprovacao"] }, "help": "Por webhook o botão só abre um link. Um fluxo com o gatilho Endpoint HTTP dá um link que registra a resposta. Sem link, use o nó Esperar resposta." },
+        { "name": "no_url", "label": "Link do botão Recusar", "kind": "text", "placeholder": "https://…", "show": { "model": ["aprovacao"] } },
+        { "name": "hint", "label": "Como responder", "kind": "text", "show": { "model": ["aprovacao"] } },
+        { "name": "color", "label": "Cor da faixa", "kind": "select", "show": { "model": ["livre"] }, "options": [
+          { "value": "accent", "label": "Azul" }, { "value": "good", "label": "Verde" }, { "value": "warning", "label": "Amarelo" }, { "value": "attention", "label": "Vermelho" }, { "value": "emphasis", "label": "Cinza" } ] },
+        { "name": "facts", "label": "Campos", "kind": "rows", "add": "Campo", "show": { "model": ["livre"] }, "columns": [{ "name": "name", "placeholder": "Nome" }, { "name": "value", "placeholder": "Valor" }] },
+        { "name": "buttons", "label": "Botões", "kind": "rows", "add": "Botão", "show": { "model": ["livre"] }, "columns": [{ "name": "name", "placeholder": "Rótulo" }, { "name": "value", "placeholder": "https://…" }] },
+        { "name": "mention", "label": "Mencionar", "kind": "text", "placeholder": "ana@empresa.com, joao@empresa.com" }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "chat", "name": "Enviar no chat", "category": "Teams",
+      "desc": "Manda uma mensagem sua para uma pessoa ou um grupo, pela conta Microsoft.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado, para usar no texto com {{input}}.",
+      "returns": "Objeto com o id e o link da mensagem; \"to\" serve de destino para os próximos nós.",
+      "sample": { "ok": true, "via": "graph", "to": "chat:19:abc…@unq.gbl.spaces", "destino": "Ana Souza", "id": "1731512345678", "conversa": "1731512345678", "link": "" },
+      "params": { "to": "", "text": "{{input}}", "importance": "normal", "mention": "" },
+      "fields": [
+        { "name": "to", "label": "Pessoas ou chat", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=chat", "placeholder": "ana@empresa.com, joao@empresa.com", "help": "Escolha um chat na lista, ou em Outro… escreva e-mails (um abre a conversa com a pessoa; vários, um grupo)." },
+        { "name": "text", "label": "Mensagem", "kind": "area", "help": "**negrito**, `código` e links funcionam. @ana@empresa.com no texto vira menção." },
+        { "name": "importance", "label": "Importância", "kind": "select", "options": [{ "value": "normal", "label": "Normal" }, { "value": "high", "label": "Importante" }, { "value": "urgent", "label": "Urgente (avisa a cada 2 min por 20 min)" }] },
+        { "name": "mention", "label": "Mencionar", "kind": "text", "placeholder": "ana@empresa.com" }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "canal", "name": "Enviar no canal", "category": "Teams",
+      "desc": "Abre uma conversa nova num canal, em seu nome, pela conta Microsoft.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado, para usar no texto com {{input}}.",
+      "returns": "Objeto com o id e o link da mensagem. Use {{input.to}} e {{input.id}} em Responder na conversa e em Esperar resposta.",
+      "sample": { "ok": true, "via": "graph", "to": "canal:1f0c…/19:abc…@thread.tacv2", "destino": "sustentação", "id": "1731512345678", "conversa": "1731512345678", "link": "https://teams.microsoft.com/l/message/…" },
+      "params": { "to": "", "subject": "", "text": "{{input}}", "importance": "normal", "mention": "" },
+      "fields": [
+        { "name": "to", "label": "Canal", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=canal", "placeholder": "sustentação", "help": "Escolha o time e o canal na lista. Em Outro…, cole o link do canal (no Teams, ⋯ ao lado do canal › Obter link para o canal)." },
+        { "name": "subject", "label": "Assunto", "kind": "text", "placeholder": "vazio: sem assunto" },
+        { "name": "text", "label": "Mensagem", "kind": "area", "help": "**negrito**, `código` e links funcionam. @ana@empresa.com no texto vira menção." },
+        { "name": "importance", "label": "Importância", "kind": "select", "options": [{ "value": "normal", "label": "Normal" }, { "value": "high", "label": "Importante" }] },
+        { "name": "mention", "label": "Mencionar", "kind": "text", "placeholder": "ana@empresa.com" }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "responder", "name": "Responder na conversa", "category": "Teams",
+      "desc": "Responde dentro de uma conversa do canal (ou manda no chat), pela conta Microsoft.",
+      "takes": "any", "gives": "object",
+      "expects": "A saída de Enviar no canal ou uma mensagem de Ler mensagens, para usar {{input.to}} e {{input.id}}.",
+      "returns": "Objeto com o id da resposta e o id da conversa.",
+      "sample": { "ok": true, "via": "graph", "to": "canal:1f0c…/19:abc…@thread.tacv2", "destino": "sustentação", "id": "1731512399999", "conversa": "1731512345678", "link": "" },
+      "params": { "to": "{{input.to}}", "message": "{{input.id}}", "text": "", "mention": "" },
+      "fields": [
+        { "name": "to", "label": "Onde", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=canal,chat", "help": "Deixe {{input.to}} para responder ao que o nó anterior enviou, escolha um canal ou chat na lista, ou cole o link da mensagem (⋯ na mensagem › Copiar link)." },
+        { "name": "message", "label": "Mensagem a responder", "kind": "text", "placeholder": "vazio: o link já diz qual" },
+        { "name": "text", "label": "Resposta", "kind": "area" },
+        { "name": "mention", "label": "Mencionar", "kind": "text", "placeholder": "ana@empresa.com" }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "mencionar", "name": "Mencionar pessoa", "category": "Teams",
+      "desc": "Chama a atenção de uma ou mais pessoas com @menção num canal, chat ou webhook.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado, para usar no texto com {{input}}.",
+      "returns": "Objeto com o destino usado e, pela conta Microsoft, o id da mensagem.",
+      "sample": { "ok": true, "via": "graph", "to": "canal:1f0c…/19:abc…@thread.tacv2", "destino": "sustentação", "id": "1731512345678", "conversa": "1731512345678", "link": "" },
+      "params": { "to": "", "people": "", "text": "" },
+      "fields": [
+        { "name": "to", "label": "Onde", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=webhook,canal,chat", "placeholder": "sustentação", "help": "Escolha na lista, ou em Outro… cole o link do canal ou escreva os e-mails das pessoas do chat." },
+        { "name": "people", "label": "Quem", "kind": "text", "placeholder": "plantonista@empresa.com" },
+        { "name": "text", "label": "Mensagem", "kind": "area" }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "ler", "name": "Ler mensagens", "category": "Teams",
+      "desc": "Traz as últimas mensagens de um canal ou chat, da mais nova para a mais antiga.",
+      "takes": "any", "gives": "list",
+      "expects": "Qualquer dado.",
+      "returns": "Lista de mensagens: quem escreveu, o texto, quando, o id e o link.",
+      "sample": [{ "id": "1731512345678", "de": "Ana Souza", "deId": "8c1f…", "texto": "Subiu a correção, podem validar.", "assunto": "", "quando": "2026-11-13T14:02:11.000Z", "respostaDe": "", "link": "https://teams.microsoft.com/l/message/…", "importancia": "normal", "mencoes": [] }],
+      "params": { "to": "", "count": 10, "minutes": 0, "contains": "", "message": "" },
+      "fields": [
+        { "name": "to", "label": "Canal ou chat", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=canal,chat", "placeholder": "sustentação", "help": "Escolha na lista, ou em Outro… cole o link do canal ou escreva os e-mails das pessoas. Ler canal exige a permissão que o administrador aprova (veja o README)." },
+        { "name": "count", "label": "Quantas", "kind": "number", "min": 1, "max": 50 },
+        { "name": "minutes", "label": "Só dos últimos minutos (0: todas)", "kind": "number", "min": 0, "max": 10080 },
+        { "name": "contains", "label": "Só as que contêm", "kind": "text", "placeholder": "vazio: todas" },
+        { "name": "message", "label": "Só as respostas da mensagem", "kind": "text", "placeholder": "vazio: as conversas do canal" }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "esperar", "name": "Esperar resposta", "category": "Teams",
+      "desc": "Espera alguém responder com uma palavra de aprovação ou de recusa. Serve de aprovação antes de um deploy.",
+      "takes": "any", "gives": "object",
+      "expects": "A saída de Enviar no canal ou de Enviar cartão, para usar {{input.to}} e {{input.id}}.",
+      "returns": "Sai por sim quando alguém aprova e por não quando alguém recusa ou o tempo acaba (motivo: recusado ou tempo), com a mensagem que decidiu.",
+      "sample": { "aprovado": true, "motivo": "aprovado", "palavra": "aprovado", "de": "Ana Souza", "mensagem": { "id": "1731512399999", "de": "Ana Souza", "texto": "aprovado, pode subir", "quando": "2026-11-13T14:05:40.000Z", "link": "" } },
+      "inputs": ["in"], "outputs": ["true", "false"],
+      "params": { "to": "{{input.to}}", "message": "{{input.id}}", "approve": "aprovado, aprovo, ok, sim", "reject": "recusado, reprovado, negado, não", "from": "", "timeout_s": 300, "every_s": 10 },
+      "fields": [
+        { "name": "to", "label": "Canal ou chat", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=canal,chat", "help": "Deixe {{input.to}} para esperar onde o nó anterior mandou o pedido, ou escolha um canal ou chat na lista." },
+        { "name": "message", "label": "Só as respostas da mensagem", "kind": "text", "placeholder": "vazio: qualquer mensagem nova" },
+        { "name": "approve", "label": "Palavras que aprovam", "kind": "text" },
+        { "name": "reject", "label": "Palavras que recusam", "kind": "text" },
+        { "name": "from", "label": "Só vale resposta de", "kind": "text", "placeholder": "vazio: qualquer pessoa" },
+        { "name": "timeout_s", "label": "Esperar até (segundos)", "kind": "number", "min": 5, "max": 3600 },
+        { "name": "every_s", "label": "Conferir a cada (segundos)", "kind": "number", "min": 1, "max": 60 }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 3720000 }
+    },
+    {
+      "type": "presenca", "name": "Mudar minha presença", "category": "Teams",
+      "desc": "Troca a sua presença no Teams por um tempo: Ocupado, Não incomodar, Ausente.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado.",
+      "returns": "Objeto com a presença aplicada e até quando ela vale.",
+      "sample": { "disponibilidade": "DoNotDisturb", "rotulo": "Não incomodar", "minutos": 60, "ate": "2026-11-13T15:02:11.000Z" },
+      "params": { "availability": "DoNotDisturb", "minutes": 60 },
+      "fields": [
+        { "name": "availability", "label": "Presença", "kind": "select", "options": [
+          { "value": "Available", "label": "Disponível" }, { "value": "Busy", "label": "Ocupado" }, { "value": "DoNotDisturb", "label": "Não incomodar" },
+          { "value": "BeRightBack", "label": "Volto logo" }, { "value": "Away", "label": "Ausente" }, { "value": "Offline", "label": "Aparecer offline" }, { "value": "auto", "label": "Automático (desfaz a escolha)" } ] },
+        { "name": "minutes", "label": "Por quantos minutos", "kind": "number", "min": 5, "max": 1440, "show": { "availability": ["Available", "Busy", "DoNotDisturb", "BeRightBack", "Away", "Offline"] } }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "status", "name": "Mensagem de status", "category": "Teams",
+      "desc": "Escreve a sua mensagem de status do Teams, como \"Em incidente, respondo depois\".",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado, para usar no texto com {{input}}.",
+      "returns": "Objeto com a mensagem aplicada e até quando ela vale.",
+      "sample": { "mensagem": "Em incidente, respondo depois", "ate": "2026-11-13T15:02:11.000Z" },
+      "params": { "text": "", "minutes": 60 },
+      "fields": [
+        { "name": "text", "label": "Mensagem", "kind": "text", "placeholder": "vazio: apaga a mensagem atual" },
+        { "name": "minutes", "label": "Apagar depois de (minutos, 0: não apaga)", "kind": "number", "min": 0, "max": 10080 }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "meu_status", "name": "Ler minha presença", "category": "Teams",
+      "desc": "Diz como você está no Teams agora: disponível, em reunião, em chamada.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado.",
+      "returns": "Objeto com a disponibilidade, a atividade e a mensagem de status.",
+      "sample": { "disponibilidade": "Busy", "atividade": "InAMeeting", "rotulo": "Em reunião", "mensagem": "", "mensagemAte": "" },
+      "params": {},
+      "fields": [],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "reuniao", "name": "Criar reunião", "category": "Teams",
+      "desc": "Cria uma reunião do Teams (uma war room, por exemplo) e devolve o link para entrar.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado, para usar no assunto com {{input}}.",
+      "returns": "Objeto com o link para entrar, o assunto e os horários.",
+      "sample": { "link": "https://teams.microsoft.com/l/meetup-join/…", "id": "MSo1…", "assunto": "War room: API de pagamentos", "inicio": "2026-11-13T14:02:11.000Z", "fim": "2026-11-13T15:02:11.000Z", "convidados": [], "naAgenda": false, "linkAgenda": "" },
+      "params": { "subject": "", "when": "now", "in_min": 15, "at": "", "minutes": 60, "mode": "link", "people": [], "text": "" },
+      "fields": [
+        { "name": "subject", "label": "Assunto", "kind": "text", "placeholder": "War room: {{input.titulo}}" },
+        { "name": "when", "label": "Quando", "kind": "select", "options": [{ "value": "now", "label": "Agora" }, { "value": "in", "label": "Daqui a alguns minutos" }, { "value": "at", "label": "Num horário" }] },
+        { "name": "in_min", "label": "Daqui a (minutos)", "kind": "number", "min": 1, "max": 10080, "show": { "when": ["in"] } },
+        { "name": "at", "label": "Horário", "kind": "text", "placeholder": "15:30 ou 13/11/2026 15:30", "show": { "when": ["at"] } },
+        { "name": "minutes", "label": "Duração (minutos)", "kind": "number", "min": 5, "max": 1440 },
+        { "name": "mode", "label": "Convite", "kind": "select", "options": [{ "value": "link", "label": "Só o link (não entra na agenda)" }, { "value": "agenda", "label": "Na agenda, com convidados" }] },
+        { "name": "people", "label": "Convidados (um e-mail por linha)", "kind": "lines", "show": { "mode": ["agenda"] } },
+        { "name": "text", "label": "Descrição", "kind": "area", "show": { "mode": ["agenda"] } }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "agenda", "name": "Minhas próximas reuniões", "category": "Teams",
+      "desc": "Lista as suas reuniões de hoje ou das próximas horas, com o link do Teams.",
+      "takes": "any", "gives": "list",
+      "expects": "Qualquer dado.",
+      "returns": "Lista de reuniões em ordem de horário; emMinutos diz quanto falta para cada uma começar.",
+      "sample": [{ "assunto": "Daily", "inicio": "2026-11-13T12:30:00.000Z", "fim": "2026-11-13T12:45:00.000Z", "link": "https://teams.microsoft.com/l/meetup-join/…", "online": true, "local": "", "organizador": "Ana Souza", "diaInteiro": false, "emMinutos": 18, "linkAgenda": "" }],
+      "params": { "range": "today", "hours": 4, "online": "no" },
+      "fields": [
+        { "name": "range", "label": "Período", "kind": "select", "options": [{ "value": "today", "label": "Até o fim de hoje" }, { "value": "hours", "label": "As próximas horas" }] },
+        { "name": "hours", "label": "Quantas horas", "kind": "number", "min": 1, "max": 168, "show": { "range": ["hours"] } },
+        { "name": "online", "label": "Quais", "kind": "select", "options": [{ "value": "no", "label": "Todas" }, { "value": "yes", "label": "Só as com link do Teams" }] }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "arquivo", "name": "Enviar arquivo", "category": "Teams",
+      "desc": "Manda um arquivo do PC para um canal ou chat, com uma mensagem opcional, pela conta Microsoft.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado. Um caminho de arquivo que chega (de Capturar a tela, Gravar Excel...) pode ir no campo Arquivo com {{input}}.",
+      "returns": "Objeto com o nome do arquivo no Teams, o link do arquivo e o id da mensagem.",
+      "sample": { "ok": true, "via": "graph", "to": "canal:1f0c…/19:abc…@thread.tacv2", "destino": "sustentação", "id": "1731512345678", "link": "https://teams.microsoft.com/l/message/…", "arquivo": "relatorio.xlsx", "linkArquivo": "https://empresa.sharepoint.com/…/relatorio.xlsx", "tamanho": 48213 },
+      "params": { "to": "", "path": "", "text": "" },
+      "fields": [
+        { "name": "to", "label": "Canal ou chat", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=canal,chat", "help": "No canal, o arquivo vai para a aba Arquivos do canal; no chat, para o seu OneDrive, compartilhado com quem está na conversa." },
+        { "name": "path", "label": "Arquivo", "kind": "text", "pick": "file", "placeholder": "C:\\relatorios\\vendas.xlsx" },
+        { "name": "text", "label": "Mensagem", "kind": "area", "placeholder": "vazio: só o arquivo" }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 600000 }
+    },
+    {
+      "type": "novas", "name": "Mensagens novas", "category": "Teams",
+      "desc": "Confere se chegou mensagem num canal ou chat desde a última vez. Ponha depois de uma Agenda (a cada 5 minutos, por exemplo) para o fluxo reagir a mensagens.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado: normalmente o disparo da Agenda.",
+      "returns": "Sai por sim com as mensagens novas (mensagens, da mais antiga para a mais nova, e ultima) e por não quando nada chegou. Na primeira vez só marca o ponto de partida e sai por não.",
+      "sample": { "quantas": 1, "mensagens": [{ "id": "1731512345678", "de": "Ana Souza", "deId": "8c1f…", "texto": "O deploy pode subir?", "assunto": "", "quando": "2026-11-13T14:02:11.000Z", "respostaDe": "", "link": "https://teams.microsoft.com/l/message/…", "importancia": "normal", "mencoes": [] }], "ultima": { "id": "1731512345678", "de": "Ana Souza", "texto": "O deploy pode subir?" }, "primeira": false, "destino": "sustentação", "to": "canal:1f0c…/19:abc…@thread.tacv2" },
+      "inputs": ["in"], "outputs": ["true", "false"],
+      "params": { "to": "", "contains": "", "from": "", "mine": "no" },
+      "fields": [
+        { "name": "to", "label": "Canal ou chat", "kind": "text", "choicesFrom": "bluemsteams/opcoes?aceita=canal,chat", "help": "Ler canal exige a permissão que o administrador aprova (veja o README); chat não." },
+        { "name": "contains", "label": "Só as que contêm", "kind": "text", "placeholder": "vazio: todas" },
+        { "name": "from", "label": "Só as de", "kind": "text", "placeholder": "vazio: de qualquer pessoa" },
+        { "name": "mine", "label": "As minhas", "kind": "select", "options": [{ "value": "no", "label": "Ignorar as que eu mandei" }, { "value": "yes", "label": "Contar também" }] }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "times", "name": "Listar times", "category": "Teams",
+      "desc": "Traz os times de que você participa.",
+      "takes": "any", "gives": "list",
+      "expects": "Qualquer dado.",
+      "returns": "Lista de times com id, nome e descrição.",
+      "sample": [{ "id": "1f0c2b6e-…", "nome": "Sustentação", "descricao": "Plantão e incidentes" }],
+      "params": {},
+      "fields": [],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "canais", "name": "Listar canais", "category": "Teams",
+      "desc": "Traz os canais de um time, com o destino pronto para os outros nós.",
+      "takes": "any", "gives": "list",
+      "expects": "Qualquer dado, ou o nome do time vindo de outro nó.",
+      "returns": "Lista de canais com id, nome, tipo (standard, private, shared), o time e \"to\", que serve de destino em Enviar no canal.",
+      "sample": [{ "id": "19:abc…@thread.tacv2", "nome": "Geral", "tipo": "standard", "time": "Sustentação", "timeId": "1f0c2b6e-…", "to": "canal:1f0c2b6e-…/19:abc…@thread.tacv2" }],
+      "params": { "team": "" },
+      "fields": [
+        { "name": "team", "label": "Time", "kind": "text", "choicesFrom": "bluemsteams/opcoes?tipo=times", "placeholder": "Sustentação" }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "chats", "name": "Listar chats", "category": "Teams",
+      "desc": "Traz os seus chats recentes (conversas com pessoas, grupos e reuniões).",
+      "takes": "any", "gives": "list",
+      "expects": "Qualquer dado.",
+      "returns": "Lista de chats com id, nome, tipo, as pessoas e \"to\", que serve de destino em Enviar no chat.",
+      "sample": [{ "id": "19:abc…@unq.gbl.spaces", "nome": "Ana Souza", "tipo": "oneOnOne", "pessoas": ["Ana Souza"], "to": "chat:19:abc…@unq.gbl.spaces" }],
+      "params": { "count": 20 },
+      "fields": [
+        { "name": "count", "label": "Quantos", "kind": "number", "min": 1, "max": 50 }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 180000 }
+    },
+    {
+      "type": "abrir", "name": "Abrir no Teams", "category": "Teams",
+      "desc": "Abre o Teams neste PC num chat, numa chamada, num canal ou no agendamento de uma reunião. Não precisa de login.",
+      "takes": "any", "gives": "object",
+      "expects": "Qualquer dado, para usar nos campos com {{input}}.",
+      "returns": "Objeto com o link (para o navegador) e o linkApp (abre direto no aplicativo).",
+      "sample": { "link": "https://teams.microsoft.com/l/chat/0/0?users=ana%40empresa.com", "linkApp": "msteams:/l/chat/0/0?users=ana%40empresa.com", "abriu": true },
+      "params": { "what": "chat", "people": "", "text": "", "topic": "", "target": "", "open": "yes" },
+      "fields": [
+        { "name": "what", "label": "O quê", "kind": "select", "options": [
+          { "value": "chat", "label": "Chat com pessoas" }, { "value": "chamada", "label": "Chamada de áudio" }, { "value": "video", "label": "Chamada de vídeo" },
+          { "value": "agendar", "label": "Agendar reunião" }, { "value": "canal", "label": "Canal" }, { "value": "link", "label": "Link do Teams (mensagem, reunião)" } ] },
+        { "name": "people", "label": "Pessoas (e-mails)", "kind": "text", "placeholder": "ana@empresa.com, joao@empresa.com", "show": { "what": ["chat", "chamada", "video", "agendar"] } },
+        { "name": "text", "label": "Mensagem já escrita", "kind": "area", "show": { "what": ["chat", "agendar"] } },
+        { "name": "topic", "label": "Assunto ou nome do grupo", "kind": "text", "show": { "what": ["chat", "agendar"] } },
+        { "name": "target", "label": "Canal ou link", "kind": "text", "placeholder": "sustentação, ou {{input.link}}", "show": { "what": ["canal", "link"] } },
+        { "name": "open", "label": "Ao rodar", "kind": "select", "options": [{ "value": "yes", "label": "Abrir o Teams" }, { "value": "no", "label": "Só devolver o link" }] }
+      ],
+      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 60000 }
+    }
+  ]
+}
