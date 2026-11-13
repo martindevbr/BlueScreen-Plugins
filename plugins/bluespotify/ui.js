@@ -159,12 +159,17 @@ function sair() {
 // ---------- tocar aqui: Web Playback SDK, isolado atrás deste objeto ----------
 // O SDK só cria um dispositivo do Spotify Connect chamado "BlueScreen" dentro desta página. Os comandos seguem pela
 // Web API (iguais aos de qualquer outro dispositivo); do SDK vêm os eventos de estado, que dispensam consultar a API.
-// Exige Premium e um WebView com DRM (Widevine). Sem um dos dois, o resto do plugin continua pelo Spotify Connect.
+// Exige Premium e DRM (Widevine). O WebView2 costuma não ter: aí o servidor abre o player em segundo plano (o Edge
+// escondido, lib/fundo.mjs), que aparece no Spotify Connect com o mesmo nome e recebe os comandos pela Web API.
+// Assim dá para tocar sem o aplicativo do Spotify instalado.
 const Local = {
-  player: null, id: '', fase: 'desligado', msg: '', volume: 0.8, ativo: false,
-  ligar() {
+  player: null, id: '', fase: 'desligado', msg: '', volume: 0.8, ativo: false, modo: '', timer: 0,
+  async ligar() {
     if (this.fase !== 'desligado' || !E.est || !E.est.sdk) return;
     this.fase = 'carregando';
+    if (!(await temWidevine())) return this.fundo();
+    if (morto || this.fase !== 'carregando') return;
+    this.modo = 'webview';
     const criar = () => { if (!morto && this.fase === 'carregando') this.criar(); };
     if (window.Spotify && window.Spotify.Player) return criar();
     window.onSpotifyWebPlaybackSDKReady = criar;
@@ -188,7 +193,7 @@ const Local = {
       this.ativo = true;
       aplicarEstado(this.converter(st), 'sdk');
     });
-    pl.addListener('initialization_error', ({ message }) => { this.fase = 'erro'; this.msg = 'Este PC não tem o DRM (Widevine) que o Spotify exige para tocar dentro do BlueScreen. Use o Spotify aberto no PC ou no celular como dispositivo.'; console.warn('BlueSpotify SDK:', message); this.soltar(); });
+    pl.addListener('initialization_error', ({ message }) => { console.warn('BlueSpotify SDK:', message); this.soltar(); this.fundo(); });
     pl.addListener('account_error', () => { this.fase = 'sem-premium'; this.soltar(); chamar('premium', {}, { valor: false }).catch(() => {}); marcarSemPremium(); });
     pl.addListener('authentication_error', ({ message }) => { console.warn('BlueSpotify SDK:', message); this.fase = 'erro'; this.msg = 'O Spotify recusou a conexão do player. Saia da conta e conecte de novo.'; this.soltar(); });
     pl.addListener('playback_error', ({ message }) => { toast('O Spotify não conseguiu tocar esta faixa aqui' + (message ? ': ' + message : '.'), 'err', 'bsp'); });
@@ -205,12 +210,50 @@ const Local = {
       dispositivo: { id: this.id, nome: 'BlueScreen', tipo: 'Computer', ativo: true, volume: Math.round(this.volume * 100), temVolume: true, local: true },
     };
   },
+  // player em segundo plano: pede ao servidor e acompanha até ficar pronto; depois confere de vez em quando
+  // (o id do dispositivo muda se o player reiniciar)
+  fundo() {
+    this.modo = 'fundo'; this.fase = 'carregando'; this.msg = ''; this.id = '';
+    clearTimeout(this.timer);
+    const inicio = Date.now();
+    const ver = async (r) => {
+      if (morto || this.modo !== 'fundo') return;
+      try { r = r || (await chamar('fundo-estado')); }
+      catch (e) { r = { fase: 'erro', msg: e.message }; }
+      if (morto || this.modo !== 'fundo') return;
+      const antes = this.fase + this.id;
+      if (r.fase === 'pronto') { this.fase = 'pronto'; this.id = r.id; this.msg = ''; }
+      else if (r.fase === 'sem-premium') { this.fase = 'sem-premium'; this.id = ''; marcarSemPremium(); return; }
+      else if (r.fase === 'erro' || r.fase === 'desligado') { this.fase = 'erro'; this.id = ''; this.msg = r.msg || 'O player em segundo plano fechou.'; }
+      else { this.fase = 'carregando'; this.id = ''; }
+      if (antes !== this.fase + this.id && R.disp) { pintado.disp = undefined; pintarPlayer(); }
+      if (this.fase === 'erro') return;
+      this.timer = setTimeout(() => ver(), this.fase === 'pronto' ? 15000 : Date.now() - inicio < 70000 ? 1500 : 5000);
+    };
+    chamar('fundo', {}, {}).then(ver).catch((e) => ver({ fase: 'erro', msg: e.message }));
+  },
   // precisa rodar dentro de um clique: libera o áudio no navegador antes de o Spotify mandar tocar aqui
   ativar() { try { if (this.player && this.player.activateElement) this.player.activateElement(); } catch {} },
   soltar() { try { if (this.player) this.player.disconnect(); } catch {} this.player = null; this.id = ''; this.ativo = false; if (P.fonte === 'sdk') { P.fonte = ''; } },
-  desligar() { if (this.fase === 'desligado') return; const sem = this.fase === 'sem-premium'; this.soltar(); this.fase = sem ? 'sem-premium' : 'desligado'; },
+  desligar() {
+    clearTimeout(this.timer);
+    if (this.modo === 'fundo') chamar('fundo-parar', {}, {}).catch(() => {});
+    this.modo = '';
+    if (this.fase === 'desligado') return;
+    const sem = this.fase === 'sem-premium'; this.soltar(); this.fase = sem ? 'sem-premium' : 'desligado';
+  },
+  // depois de um erro: tenta de novo (Dispositivos › Tocar neste PC de novo)
+  religar() { clearTimeout(this.timer); this.soltar(); this.modo = ''; this.fase = 'desligado'; this.msg = ''; this.ligar(); },
   get mandando() { return P.fonte === 'sdk' && this.ativo && !!this.player; },
 };
+
+// O WebView2 normalmente vem sem Widevine; conferir antes evita carregar o SDK à toa.
+async function temWidevine() {
+  try {
+    await navigator.requestMediaKeySystemAccess('com.widevine.alpha', [{ initDataTypes: ['cenc'], audioCapabilities: [{ contentType: 'audio/mp4; codecs="mp4a.40.2"' }] }]);
+    return true;
+  } catch { return false; }
+}
 
 // ---------- player: estado e sincronização ----------
 function aplicarEstado(s, fonte) {
@@ -680,7 +723,7 @@ function menuConta(ev) {
   bs.showMenu(ev, [
     ...(est.usuario && est.usuario.link ? [{ label: 'Meu perfil no Spotify', icon: IC.ext, action: () => abrirFora(est.usuario.link) }] : []),
     { label: 'Atualizar a biblioteca', icon: IC.refresh, action: () => recarregarTudo() },
-    ...(est.premium === false ? [{ label: 'Tentar tocar por aqui de novo', icon: IC.play, action: async () => { await chamar('premium', {}, { valor: null }).catch(() => {}); E.est.premium = null; if (E.aviso && E.aviso.codigo === 'premium') avisar(null); if (E.cfg.local) { Local.fase = 'desligado'; Local.ligar(); } desenhar(); } }] : []),
+    ...(est.premium === false ? [{ label: 'Tentar tocar por aqui de novo', icon: IC.play, action: async () => { await chamar('premium', {}, { valor: null }).catch(() => {}); E.est.premium = null; if (E.aviso && E.aviso.codigo === 'premium') avisar(null); if (E.cfg.local) Local.religar(); desenhar(); } }] : []),
     { label: 'Configurações', icon: IC.gear, action: () => plugin.settings.open() },
     '-',
     { label: 'Sair da conta', icon: IC.out, action: sair },
@@ -702,10 +745,12 @@ const iconeDisp = (t) => (/phone|tablet/i.test(t) ? IC.phone : /speaker|avr|cast
 async function dialogoDispositivos(pendente) {
   const corpo = (lista, erro) => {
     const itens = lista.map((d) => `<button class="bsp-dev${d.ativo ? ' on' : ''}" data-id="${esc(d.id)}" ${d.restrito ? 'disabled' : ''}>${iconeDisp(d.tipo)}<span><b>${esc(d.nome)}</b><small>${d.ativo ? 'Tocando aqui' : d.restrito ? 'Não aceita controle de fora' : d.id === Local.id ? 'Este BlueScreen' : ({ Computer: 'Computador', Smartphone: 'Celular', Speaker: 'Caixa de som', TV: 'TV', Tablet: 'Tablet' }[d.tipo] || d.tipo || '')}</small></span></button>`).join('');
-    const nota = Local.fase === 'erro' && Local.msg ? `<p class="bsp-dev-nota">${esc(Local.msg)}</p>` : '';
+    const nota = Local.fase === 'erro' && Local.msg ? `<p class="bsp-dev-nota">${esc(Local.msg)}</p>`
+      : Local.fase === 'carregando' && Local.modo === 'fundo' ? '<p class="bsp-dev-nota">Preparando o BlueScreen para tocar sem o aplicativo do Spotify…</p>' : '';
+    const religar = E.cfg.local && !semPremium() && Local.fase === 'erro' ? `<button class="chip" data-religar>${IC.refresh}Tocar neste PC de novo</button>` : '';
     return `<div class="dlg-hd"><span class="dlg-ic">${IC.device}</span><div><h3>${pendente ? 'Onde tocar?' : 'Dispositivos'}</h3><p>${lista.length ? 'Aparelhos com o Spotify aberto na sua conta.' : 'Nenhum aparelho com o Spotify aberto.'}</p></div></div>
-      <div class="bsp-devs">${erro ? `<div class="empty">${esc(erro)}</div>` : itens || `<div class="empty">Abra o Spotify neste PC ou no celular e clique em Atualizar.${semPremium() ? '' : ' Com Premium, o BlueScreen também aparece aqui.'}</div>`}</div>${nota}
-      <div class="actions"><button class="chip" data-app>${IC.ext}Abrir o Spotify neste PC</button><button class="chip" data-atualizar>${IC.refresh}Atualizar</button></div>`;
+      <div class="bsp-devs">${erro ? `<div class="empty">${esc(erro)}</div>` : itens || `<div class="empty">Abra o Spotify neste PC ou no celular e clique em Atualizar.${semPremium() ? '' : ' Com Premium, o BlueScreen também aparece aqui, sem precisar do aplicativo.'}</div>`}</div>${nota}
+      <div class="actions">${religar}<button class="chip" data-app>${IC.ext}Abrir o Spotify neste PC</button><button class="chip" data-atualizar>${IC.refresh}Atualizar</button></div>`;
   };
   const abrir = async () => {
     let lista = [], erro = '';
@@ -713,6 +758,7 @@ async function dialogoDispositivos(pendente) {
     if (morto) return;
     dialog('bspDisp', corpo(lista, erro), (el) => {
       el.querySelector('[data-atualizar]').onclick = abrir;
+      const rl = el.querySelector('[data-religar]'); if (rl) rl.onclick = () => { Local.religar(); setTimeout(() => { if (!el.hidden) abrir(); }, 300); };
       el.querySelector('[data-app]').onclick = () => { abrirNoApp('spotify:'); setTimeout(() => { if (!el.hidden) abrir(); }, 4000); };
       el.querySelectorAll('.bsp-dev').forEach((b) => { b.onclick = async () => {
         el.hidden = true;
@@ -959,7 +1005,7 @@ plugin.onUnload(() => {
   Object.values(T).forEach((t) => { clearTimeout(t); clearInterval(t); });
   clearTimeout(P.volTimer);
   document.removeEventListener('visibilitychange', aoVer);
-  Local.soltar(); if (window.onSpotifyWebPlaybackSDKReady) window.onSpotifyWebPlaybackSDKReady = () => {};
+  clearTimeout(Local.timer); Local.soltar(); if (window.onSpotifyWebPlaybackSDKReady) window.onSpotifyWebPlaybackSDKReady = () => {};
   bs.footer.remove(ID);
   for (const id of ['bspDisp', 'bspSair']) { const d = document.getElementById(id); if (d) d.remove(); }
 });

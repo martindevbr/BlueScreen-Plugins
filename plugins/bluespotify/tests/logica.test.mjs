@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { Spotify, Falha } from '../lib/spotify.mjs';
 import { Acoes, lerLink, fFaixa } from '../lib/acoes.mjs';
+import { acharNavegador, argumentosNavegador, paginaTocador } from '../lib/fundo.mjs';
 
 let ok = 0;
 const caso = async (nome, fn) => { try { await fn(); ok++; } catch (e) { console.error('✗ ' + nome + '\n  ' + (e.stack || e.message)); process.exitCode = 1; } };
@@ -88,6 +89,17 @@ await caso('playlist de outra pessoa não aceita faixa', async () => {
     'GET /v1/me/playlists': () => resposta(200, { total: 1, items: [{ id: 'p9', name: 'Top 50', owner: { id: 'spotify' } }] }),
   });
   await assert.rejects(new Acoes(sp).no('playlist', { playlist: 'Top 50', faixa: 'spotify:track:abc' }), (e) => e.codigo === 'proibido');
+});
+
+await caso('player em segundo plano: navegador, argumentos e página', () => {
+  assert.equal(acharNavegador({ BLUESPOTIFY_NAVEGADOR: 'Z:/nao/existe.exe' }), '');
+  assert.equal(acharNavegador({ BLUESPOTIFY_NAVEGADOR: process.execPath }), process.execPath);
+  assert.equal(acharNavegador({}), ''); // sem pastas de programas: nenhum navegador
+  const args = argumentosNavegador('http://127.0.0.1:1/tocador?k=x', 'C:/perfil');
+  assert.ok(args.includes('--user-data-dir=C:/perfil') && args.includes('--app=http://127.0.0.1:1/tocador?k=x'));
+  assert.ok(args.includes('--autoplay-policy=no-user-gesture-required'));
+  const html = paginaTocador('https://sdk.scdn.co/spotify-player.js');
+  assert.ok(html.includes('"https://sdk.scdn.co/spotify-player.js"') && html.includes("name: 'BlueScreen'"));
 });
 
 console.log(process.exitCode ? 'falhou' : `${ok} testes passaram`);

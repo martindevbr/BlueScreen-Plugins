@@ -1,8 +1,8 @@
 {
   "id": "bluespotify",
   "name": "BlueSpotify",
-  "description": "O Spotify dentro do BlueScreen, leve: suas playlists, curtidas, álbuns e artistas, busca, fila e um player que toca aqui mesmo (Premium) ou controla o Spotify do PC ou do celular. Mini player na barra de baixo e nós no Automator. Ctrl+Alt+M.",
-  "version": "1.0.0",
+  "description": "O Spotify dentro do BlueScreen, leve: suas playlists, curtidas, álbuns e artistas, busca, fila e um player que toca aqui mesmo, sem precisar do aplicativo do Spotify (Premium), ou controla o Spotify do PC ou do celular. Mini player na barra de baixo e nós no Automator. Ctrl+Alt+M.",
+  "version": "1.1.0",
   "author": "Martin",
   "icon": "icon.svg",
   "order": 70,
@@ -26,7 +26,7 @@
       "label": "Tocar aqui no BlueScreen (Premium)",
       "type": "bool",
       "default": true,
-      "help": "Desligado, o BlueSpotify só controla outro dispositivo: o Spotify aberto no PC ou no celular."
+      "help": "Toca sem o aplicativo do Spotify instalado (usa o Microsoft Edge escondido quando o BlueScreen não tem o DRM do Spotify). Desligado, o BlueSpotify só controla outro dispositivo: o Spotify aberto no PC ou no celular."
     },
     {
       "key": "mini",

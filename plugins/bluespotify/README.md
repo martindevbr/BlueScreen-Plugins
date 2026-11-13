@@ -1,6 +1,6 @@
 # BlueSpotify
 
-O Spotify dentro do BlueScreen, mais leve que o aplicativo: a sua biblioteca (playlists, Curtidas, álbuns, artistas, tocadas recentemente), busca, fila, dispositivos, volume e um player compacto no rodapé. Toca dentro da IDE (conta Premium) ou controla o Spotify aberto no PC, no celular ou numa caixa de som. Traz também 11 nós para o Automator, na categoria **Spotify**.
+O Spotify dentro do BlueScreen, mais leve que o aplicativo: a sua biblioteca (playlists, Curtidas, álbuns, artistas, tocadas recentemente), busca, fila, dispositivos, volume e um player compacto no rodapé. Toca dentro da IDE, sem precisar do aplicativo do Spotify instalado (conta Premium), ou controla o Spotify aberto no PC, no celular ou numa caixa de som. Traz também 11 nós para o Automator, na categoria **Spotify**.
 
 Precisa do Node.js 18 ou mais novo (o servidor do plugin é um `server.mjs`).
 
@@ -26,7 +26,7 @@ Regras do Spotify para apps novos (modo de desenvolvimento, desde fevereiro de 2
 
 ## Tocar: aqui ou em outro aparelho
 
-- **Aqui no BlueScreen.** Com Premium, o plugin carrega o Web Playback SDK do Spotify e a IDE aparece como um dispositivo do Spotify Connect chamado **BlueScreen**. Isso depende de o WebView2 ter o DRM (Widevine) que o Spotify exige; sem ele, a janela de dispositivos explica o motivo e o resto do plugin continua funcionando pelo Spotify Connect. Desligue em *Tocar aqui no BlueScreen* se preferir só controlar.
+- **Aqui no BlueScreen, sem o aplicativo do Spotify.** Com Premium, o plugin usa o Web Playback SDK do Spotify e a IDE aparece como um dispositivo do Spotify Connect chamado **BlueScreen**. O SDK exige o DRM Widevine, que o WebView2 normalmente não tem: nesse caso o servidor do plugin abre o **Microsoft Edge** (que vem com o Windows; sem ele, o Google Chrome) **escondido**, com um perfil só dele em `<pasta de dados>/tocador`, e é ele que toca. Não aparece janela nem mexe no Edge que você usa; ele fecha junto com o plugin. Se algo der errado, **Dispositivos** mostra o motivo e o botão *Tocar neste PC de novo*. Desligue em *Tocar aqui no BlueScreen* se preferir só controlar.
 - **Em outro aparelho (Spotify Connect).** O player controla o Spotify aberto no PC, no celular, na TV ou na caixa de som. **Dispositivos** (no player ou no player compacto) lista os aparelhos e leva a música para o escolhido. Se nada estiver tocando em lugar nenhum, o primeiro play escolhe um aparelho aberto sozinho.
 - **Conta Free.** O Spotify não deixa apps tocarem nem controlarem a reprodução sem Premium. A faixa no topo avisa, e os botões de tocar passam a abrir a faixa no aplicativo do Spotify.
 
@@ -51,6 +51,7 @@ Exemplo: **Agenda** (dias úteis, 9h) → **Tocar** ("Foco para programar", alea
 ## Segurança e dados
 
 - O token de renovação fica em `plugin.secrets` (cifrado pelo DPAPI do Windows, só o seu usuário neste PC abre). O token de acesso fica só na memória do servidor do plugin e só vai para a página quando o Web Playback SDK pede (é exigência do SDK).
+- O player em segundo plano é uma página servida pelo próprio servidor em `127.0.0.1`, com uma chave sorteada a cada início; sem a chave, a página e o token não saem. Ela não manda o endereço para o Spotify (`Referrer-Policy: no-referrer`) e fecha sozinha quando o servidor para de responder.
 - As rotas do plugin recusam pedidos que chegam pela rede local.
 - **Sair da conta** (menu da conta, na aba) apaga o token; o Client ID fica nas configurações.
 
@@ -59,7 +60,7 @@ Exemplo: **Agenda** (dias úteis, 9h) → **Tocar** ("Foco para programar", alea
 - A Web API não entrega mais as faixas de playlists de outras pessoas (só as suas e as colaborativas): essas playlists tocam inteiras ou abrem no aplicativo.
 - O Spotify tirou as "mais tocadas" do artista da API: a página do artista mostra os álbuns e o botão que toca o artista.
 - A busca devolve no máximo 10 itens por tipo.
-- O WebView2 pode não ter Widevine: aí não toca *dentro* da IDE, só controla outro aparelho.
+- Tocar neste PC precisa do Microsoft Edge ou do Google Chrome instalado (o Edge vem com o Windows 10 e 11). Sem nenhum dos dois, o BlueSpotify só controla outro aparelho.
 
 ## Origem
 
@@ -68,11 +69,11 @@ A abordagem segue a do [Spotifast](https://github.com/crmne/spotifast) (cliente 
 ## Arquitetura
 
 **Decisão:** `ui.js` + `server.mjs`
-**Analisado em:** 2026-11-13, versão 1.0.0
+**Analisado em:** 2026-11-13, versão 1.1.0
 
 | Critério | Resultado | Evidência |
 |---|---|---|
-| Servidor | sim | o retorno do login precisa de uma porta local; o token de renovação fica fora da página; os nós do Automator falam com o servidor |
+| Servidor | sim | o retorno do login precisa de uma porta local; o token de renovação fica fora da página; os nós do Automator falam com o servidor; o player em segundo plano (Edge) é aberto e servido por ele |
 | N1 a N6 | não | só HTTP e JSON; nada de CPU pesada nem biblioteca nativa |
 
 ## Para desenvolver
@@ -81,4 +82,4 @@ A abordagem segue a do [Spotifast](https://github.com/crmne/spotifast) (cliente 
 node tests/logica.test.mjs
 ```
 
-Para testar sem conta, aponte o plugin para um servidor falso com as variáveis de ambiente da IDE: `BLUESPOTIFY_API_BASE` (no lugar de `https://api.spotify.com/v1`), `BLUESPOTIFY_ACCOUNTS_BASE` (no lugar de `https://accounts.spotify.com`), `BLUESPOTIFY_SDK_URL` (o script do Web Playback SDK) e `BLUESPOTIFY_NAO_ABRIR=1` (não abre o navegador; a URL do login vai para o `bluescreen.log`). Nesse modo a tela aceita Client ID em qualquer formato.
+Para testar sem conta, aponte o plugin para um servidor falso com as variáveis de ambiente da IDE: `BLUESPOTIFY_API_BASE` (no lugar de `https://api.spotify.com/v1`), `BLUESPOTIFY_ACCOUNTS_BASE` (no lugar de `https://accounts.spotify.com`), `BLUESPOTIFY_SDK_URL` (o script do Web Playback SDK), `BLUESPOTIFY_NAVEGADOR` (o executável do navegador do player em segundo plano) e `BLUESPOTIFY_NAO_ABRIR=1` (não abre o navegador; a URL do login vai para o `bluescreen.log`). Nesse modo a tela aceita Client ID em qualquer formato.

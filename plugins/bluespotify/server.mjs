@@ -5,6 +5,8 @@
 // - Abre a porta do retorno do login (http://127.0.0.1:<porta>/callback) só enquanto um login está em andamento.
 // - Atende os nós do Automator em /ponte: o programa do nó (no.mjs) não recebe token nenhum, só a porta e uma chave
 //   sorteada a cada início, gravadas em <pasta de dados>/ponte.json.
+// - Abre, quando a tela pede, o player em segundo plano (lib/fundo.mjs): o Edge escondido tocando como "BlueScreen",
+//   para quem não tem o aplicativo do Spotify. A página dele fala com /tocador usando outra chave sorteada.
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -13,6 +15,7 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { Spotify, Falha, BASE_API, BASE_CONTAS } from './lib/spotify.mjs';
 import { Acoes } from './lib/acoes.mjs';
+import { acharNavegador, argumentosNavegador, paginaTocador } from './lib/fundo.mjs';
 
 const require = createRequire(import.meta.url);
 const { Plugin } = require(path.join(process.env.BLUESCREEN_SDK, 'bluescreen.js'));
@@ -22,6 +25,7 @@ const TOKEN_NUCLEO = process.env.BLUESCREEN_TOKEN || '';
 const PASTA_DADOS = process.env.BLUESCREEN_PLUGIN_DATA || '';
 const ARQ_PONTE = PASTA_DADOS ? path.join(PASTA_DADOS, 'ponte.json') : '';
 const CHAVE_PONTE = crypto.randomBytes(32).toString('hex');
+const CHAVE_TOCADOR = crypto.randomBytes(32).toString('hex');
 const PORTA_PADRAO = 8974;
 const SDK_URL = process.env.BLUESPOTIFY_SDK_URL || 'https://sdk.scdn.co/spotify-player.js';
 const TESTE = BASE_API !== 'https://api.spotify.com/v1';
@@ -98,6 +102,66 @@ function abrirOuvinte(porta) {
   });
 }
 
+// ---------- player em segundo plano ----------
+let portaServidor = 0;
+const fundo = { fase: 'desligado', id: '', msg: '', ligado: false, processo: null, visto: 0, prazo: 0 };
+const MSG_FUNDO = {
+  'sem-navegador': 'Não achei o Microsoft Edge nem o Google Chrome neste PC para tocar sem o aplicativo do Spotify.',
+  demora: 'O player em segundo plano não respondeu. Tente de novo em Dispositivos.',
+};
+const fundoPublico = () => ({ fase: fundo.fase, id: fundo.id, msg: fundo.msg });
+function fundoParar(fase = 'desligado', msg = '') {
+  clearTimeout(fundo.prazo);
+  const pr = fundo.processo; fundo.processo = null; fundo.ligado = false;
+  // a página fecha sozinha no próximo aviso (ela recebe "fechar"); matar o processo é a garantia
+  if (pr) setTimeout(() => { try { pr.kill(); } catch {} }, 1500);
+  Object.assign(fundo, { fase, id: '', msg });
+}
+function fundoLigar() {
+  if (fundo.ligado) return;
+  const nav = acharNavegador();
+  if (!nav) return fundoParar('erro', MSG_FUNDO['sem-navegador']);
+  if (!PASTA_DADOS || !portaServidor) return fundoParar('erro', 'O BlueSpotify ainda está iniciando. Tente de novo.');
+  const perfil = path.join(PASTA_DADOS, 'tocador');
+  try { fs.mkdirSync(perfil, { recursive: true }); } catch {}
+  const url = `http://127.0.0.1:${portaServidor}/tocador?k=${CHAVE_TOCADOR}`;
+  Object.assign(fundo, { fase: 'abrindo', id: '', msg: '', ligado: true, visto: Date.now() });
+  // windowsHide: o Edge abre a janela escondida; o som sai normalmente. Se já houver um Edge com este perfil, ele
+  // abre a página e este processo termina logo: por isso "ligado" não depende do processo.
+  const pr = spawn(nav, argumentosNavegador(url, perfil), { stdio: 'ignore', windowsHide: true });
+  fundo.processo = pr;
+  pr.once('error', (e) => { if (fundo.processo === pr) fundoParar('erro', 'Não deu para abrir o navegador: ' + e.message); });
+  pr.once('exit', () => { if (fundo.processo === pr) fundo.processo = null; });
+  clearTimeout(fundo.prazo);
+  fundo.prazo = setTimeout(() => { if (fundo.fase === 'abrindo' || fundo.fase === 'carregando') fundoParar('erro', MSG_FUNDO.demora); }, 60000);
+}
+// a página avisa a cada 5 s; sem aviso por 20 s, a janela foi fechada
+setInterval(() => { if (fundo.fase === 'pronto' && Date.now() - fundo.visto > 20000) fundoParar(); }, 5000).unref();
+
+async function atenderTocador(rq, rs, u) {
+  const enviar = (status, corpo, tipo = 'application/json; charset=utf-8') => {
+    rs.writeHead(status, { 'content-type': tipo, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY' });
+    rs.end(typeof corpo === 'string' ? corpo : JSON.stringify(corpo));
+  };
+  if (!igual(u.searchParams.get('k'), CHAVE_TOCADOR)) return enviar(403, { erro: 'acesso negado' });
+  if (u.pathname === '/tocador' && rq.method === 'GET') return enviar(200, paginaTocador(SDK_URL), 'text/html; charset=utf-8');
+  if (rq.headers['sec-fetch-site'] && rq.headers['sec-fetch-site'] !== 'same-origin') return enviar(403, { erro: 'acesso negado' });
+  if (u.pathname === '/tocador/token' && rq.method === 'GET') {
+    try { return enviar(200, { token: fundo.ligado ? await sp.token() : '' }); } catch { return enviar(200, { token: '' }); }
+  }
+  if (u.pathname === '/tocador/estado' && rq.method === 'POST') {
+    if (!fundo.ligado) return enviar(200, { fechar: true });
+    const b = await lerCorpo(rq);
+    fundo.visto = Date.now();
+    const fase = ['carregando', 'pronto', 'erro', 'auth', 'sem-premium', 'rede'].includes(b.fase) ? b.fase : 'carregando';
+    if (fase !== 'carregando' && fase !== 'pronto') { fundoParar(fase === 'sem-premium' ? 'sem-premium' : 'erro', String(b.msg || '').slice(0, 300)); if (fase === 'sem-premium') marcarPremium(false); return enviar(200, { fechar: true }); }
+    fundo.fase = fase; fundo.id = fase === 'pronto' ? String(b.id || '').slice(0, 100) : '';
+    if (fase === 'pronto') clearTimeout(fundo.prazo);
+    return enviar(200, { fechar: false });
+  }
+  return enviar(404, { erro: 'rota desconhecida' });
+}
+
 // ---------- rotas da tela ----------
 const rotas = {
   async estado() {
@@ -135,12 +199,16 @@ const rotas = {
     } catch { return { valido: true, semConferir: true }; } // sem rede: o navegador descobre
   },
   async sair() {
-    fecharOuvinte(); login = { andamento: false, erro: '' };
+    fecharOuvinte(); login = { andamento: false, erro: '' }; fundoParar();
     await sp.esquecer(); marcarPremium(null);
     return {};
   },
   // o token de acesso só sai daqui para o Web Playback SDK (que roda na página e exige recebê-lo)
   async token() { return { token: await sp.token() }; },
+  // player em segundo plano: a tela liga quando o WebView não toca (sem Widevine) e acompanha a fase
+  async fundo() { if (!(await sp.logado())) throw new Falha('deslogado'); fundoLigar(); return fundoPublico(); },
+  async 'fundo-estado'() { return fundoPublico(); },
+  async 'fundo-parar'() { fundoParar(); return {}; },
   async lista(q) { return acoes.lista(q.tipo, { id: q.id, offset: q.offset, depois: q.depois }); },
   async busca(q) { return acoes.busca(q.q); },
   async player() { return acoes.player(); },
@@ -194,6 +262,7 @@ const servidor = http.createServer(async (rq, rs) => {
   try {
     const u = new URL(rq.url, 'http://127.0.0.1');
     // nós do Automator: só programas deste PC que leram a chave na pasta de dados (um navegador nunca chega aqui)
+    if (u.pathname === '/tocador' || u.pathname.startsWith('/tocador/')) return await atenderTocador(rq, rs, u);
     if (u.pathname === '/ponte') {
       if (rq.method !== 'POST' || rq.headers.origin || rq.headers['sec-fetch-site'] || !igual(rq.headers['x-bluespotify-chave'], CHAVE_PONTE)) return enviar(403, { ok: false, erro: 'acesso negado' });
       const b = await lerCorpo(rq);
@@ -214,13 +283,14 @@ const servidor = http.createServer(async (rq, rs) => {
   } catch (e) { enviar(500, { error: String(e && e.message ? e.message : e) }); }
 });
 
-function limpar() { try { if (ARQ_PONTE) fs.rmSync(ARQ_PONTE, { force: true }); } catch {} }
+function limpar() { try { if (ARQ_PONTE) fs.rmSync(ARQ_PONTE, { force: true }); } catch {} try { if (fundo.processo) fundo.processo.kill(); } catch {} }
 process.on('exit', limpar);
 for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, () => process.exit(0));
 
 p.data.get('premium').then((v) => { if (premium === null && typeof v === 'boolean') premium = v; }).catch(() => {});
 servidor.listen(0, '127.0.0.1', () => {
   const porta = servidor.address().port;
+  portaServidor = porta;
   if (ARQ_PONTE) {
     try { fs.mkdirSync(PASTA_DADOS, { recursive: true }); fs.writeFileSync(ARQ_PONTE, JSON.stringify({ porta, chave: CHAVE_PONTE, pid: process.pid }), { mode: 0o600 }); }
     catch (e) { console.error('BlueSpotify: não gravei ponte.json (os nós do Automator não vão funcionar): ' + e.message); }
