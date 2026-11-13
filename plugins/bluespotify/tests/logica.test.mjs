@@ -102,4 +102,20 @@ await caso('player em segundo plano: navegador, argumentos e página', () => {
   assert.ok(html.includes('"https://sdk.scdn.co/spotify-player.js"') && html.includes("name: 'BlueScreen'"));
 });
 
+await caso('sem aparelho aberto: toca no player do BlueScreen sem perguntar', async () => {
+  let tocouEm = null, pedidos = 0;
+  const sp = cliente({
+    'GET /v1/me/player/devices': () => resposta(200, { devices: [] }),
+    'PUT /v1/me/player/play': (u) => { if (!u.searchParams.get('device_id')) return resposta(404, { error: { status: 404, message: 'Player command failed: No active device found', reason: 'NO_ACTIVE_DEVICE' } }); tocouEm = u.searchParams.get('device_id'); return resposta(204); },
+  });
+  const a = new Acoes(sp);
+  a.garantirLocal = async () => { pedidos++; return 'id-bluescreen'; };
+  await a.comando({ acao: 'tocar', uris: ['spotify:track:abc'] });
+  assert.equal(tocouEm, 'id-bluescreen');
+  assert.equal(pedidos, 1);
+  assert.equal((await a.acharDispositivo('BlueScreen')).id, 'id-bluescreen');
+  a.garantirLocal = async () => ''; // player não abriu: o erro de sempre, para a tela oferecer os dispositivos
+  await assert.rejects(a.comando({ acao: 'tocar', uris: ['spotify:track:abc'] }), (e) => e.codigo === 'sem-dispositivo');
+});
+
 console.log(process.exitCode ? 'falhou' : `${ok} testes passaram`);

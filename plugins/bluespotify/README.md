@@ -4,7 +4,7 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 1.1.1 |
+| **Versão** | 1.2.0 |
 | **Licença** | MIT |
 | **Categoria** | Música e mídia |
 | **Precisa de** | BlueScreen 2.1.33 ou mais novo · Node.js 18+ |
@@ -42,7 +42,9 @@ Regras do Spotify para apps novos (modo de desenvolvimento, desde fevereiro de 2
 
 ### Tocar: aqui ou em outro aparelho
 
-- **Aqui no BlueScreen, sem o aplicativo do Spotify.** Com Premium, o plugin usa o Web Playback SDK do Spotify e a IDE aparece como um dispositivo do Spotify Connect chamado **BlueScreen**. O SDK exige o DRM Widevine, que o WebView2 normalmente não tem: nesse caso o servidor do plugin abre o **Microsoft Edge** (que vem com o Windows; sem ele, o Google Chrome) **escondido**, com um perfil só dele em `<pasta de dados>/tocador`, e é ele que toca. Não aparece janela nem mexe no Edge que você usa; ele fecha junto com o plugin. Se algo der errado, **Dispositivos** mostra o motivo e o botão *Tocar neste PC de novo*. Desligue em *Tocar aqui no BlueScreen* se preferir só controlar.
+- **Aqui no BlueScreen, sem o aplicativo do Spotify.** Com Premium, o plugin usa o Web Playback SDK do Spotify e a IDE aparece como um dispositivo do Spotify Connect chamado **BlueScreen**. O SDK exige o DRM Widevine, que o WebView2 normalmente não tem: nesse caso o servidor do plugin abre o **Microsoft Edge** (que vem com o Windows; sem ele, o Google Chrome) **sem janela**, com um perfil só dele em `<pasta de dados>/tocador`, e é ele que toca. A janela nasce fora da tela e é escondida pelo Windows: não aparece na tela, no `Alt+Tab` nem na barra de tarefas, e não mexe no Edge que você usa. Ele fecha junto com o plugin e, se fechar sozinho, abre de novo. Quando o WebView diz ter o DRM mas o player dele não funciona, o BlueSpotify lembra disso e, nas próximas vezes, vai direto para o player em segundo plano.
+
+  Sem nenhum aparelho com o Spotify aberto, tocar não pergunta nada: a música vai para o **BlueScreen** (se ele ainda estiver abrindo, espera ficar pronto). O mesmo vale para os nós do Automator. A janela **Dispositivos** só aparece se o player não conseguir abrir, com o motivo e o botão *Tocar neste PC de novo*. Desligue em *Tocar aqui no BlueScreen* se preferir só controlar.
 - **Em outro aparelho (Spotify Connect).** O player controla o Spotify aberto no PC, no celular, na TV ou na caixa de som. **Dispositivos** (no player ou no player compacto) lista os aparelhos e leva a música para o escolhido. Se nada estiver tocando em lugar nenhum, o primeiro play escolhe um aparelho aberto sozinho.
 - **Conta Free.** O Spotify não deixa apps tocarem nem controlarem a reprodução sem Premium. A faixa no topo avisa, e os botões de tocar passam a abrir a faixa no aplicativo do Spotify.
 
@@ -116,6 +118,13 @@ Para testar sem conta, aponte o plugin para um servidor falso com as variáveis 
 Feito por Martin Hartfelder. Distribuído sob a licença MIT.
 
 ## Histórico de versões
+
+### 1.2.0
+
+- O player em segundo plano não mostra mais janela: ela nasce fora da tela e é escondida (antes, a janela "BlueSpotify" do Edge ficava à vista).
+- Tocar sem nenhum aparelho aberto vai direto para o **BlueScreen**, sem a pergunta "Onde tocar?"; os nós do Automator também.
+- O player em segundo plano abre de novo sozinho se fechar.
+- Quando o player do WebView falha, o plugin lembra e, nas próximas vezes, usa direto o de segundo plano (sem esperar 10 s).
 
 ### 1.1.1
 

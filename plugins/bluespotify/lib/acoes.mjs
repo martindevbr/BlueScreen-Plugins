@@ -52,7 +52,8 @@ export function lerLink(texto) {
 }
 
 export class Acoes {
-  constructor(sp) { this.sp = sp; this.eu = null; }
+  // garantirLocal: () => Promise<id|''> abre o player do BlueScreen e espera ficar pronto (o servidor preenche)
+  constructor(sp) { this.sp = sp; this.eu = null; this.garantirLocal = null; }
 
   async perfil(forcar) {
     if (this.eu && !forcar) return this.eu;
@@ -162,10 +163,16 @@ export class Acoes {
     const n = String(nome || '').trim().toLowerCase();
     if (n) {
       const d = livres.find((x) => x.nome.toLowerCase() === n) || livres.find((x) => x.nome.toLowerCase().includes(n)) || livres.find((x) => x.id === nome);
-      if (!d) throw new Falha('sem-dispositivo', `Não achei o dispositivo "${nome}". Abertos agora: ${livres.map((x) => x.nome).join(', ') || 'nenhum'}.`);
-      return d;
+      if (d) return d;
+      if (n === 'bluescreen') { const l = await this.local(); if (l) return l; }
+      throw new Falha('sem-dispositivo', `Não achei o dispositivo "${nome}". Abertos agora: ${livres.map((x) => x.nome).join(', ') || 'nenhum'}.`);
     }
-    return livres.find((d) => d.ativo) || livres.find((d) => d.nome === 'BlueScreen') || livres[0] || null;
+    return livres.find((d) => d.ativo) || livres.find((d) => d.nome === 'BlueScreen') || livres[0] || (await this.local());
+  }
+  // nenhum aparelho com o Spotify aberto: o player em segundo plano do BlueScreen, sem perguntar nada
+  async local() {
+    const id = this.garantirLocal ? await this.garantirLocal().catch(() => '') : '';
+    return id ? { id, nome: 'BlueScreen', tipo: 'Computer', ativo: false, volume: 80, temVolume: true, restrito: false } : null;
   }
 
   // Roda um comando do player; se o Spotify disser que não há dispositivo ativo, escolhe um aberto e repete.

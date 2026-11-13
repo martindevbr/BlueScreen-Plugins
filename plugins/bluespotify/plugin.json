@@ -2,7 +2,7 @@
   "id": "bluespotify",
   "name": "BlueSpotify",
   "description": "O Spotify dentro do BlueScreen, leve: suas playlists, curtidas, álbuns e artistas, busca, fila e um player que toca aqui mesmo, sem precisar do aplicativo do Spotify (Premium), ou controla o Spotify do PC ou do celular. Mini player na barra de baixo e nós no Automator. Ctrl+Alt+M.",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "author": "Martin Hartfelder",
   "license": "MIT",
   "category": "midia",

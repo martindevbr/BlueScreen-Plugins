@@ -15,7 +15,7 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { Spotify, Falha, BASE_API, BASE_CONTAS } from './lib/spotify.mjs';
 import { Acoes } from './lib/acoes.mjs';
-import { acharNavegador, argumentosNavegador, paginaTocador } from './lib/fundo.mjs';
+import { acharNavegador, argumentosNavegador, esconderJanela, paginaTocador } from './lib/fundo.mjs';
 
 const require = createRequire(import.meta.url);
 const { Plugin } = require(path.join(process.env.BLUESCREEN_SDK, 'bluescreen.js'));
@@ -26,6 +26,7 @@ const PASTA_DADOS = process.env.BLUESCREEN_PLUGIN_DATA || '';
 const ARQ_PONTE = PASTA_DADOS ? path.join(PASTA_DADOS, 'ponte.json') : '';
 const CHAVE_PONTE = crypto.randomBytes(32).toString('hex');
 const CHAVE_TOCADOR = crypto.randomBytes(32).toString('hex');
+const TITULO_TOCADOR = 'bluespotify-' + crypto.randomBytes(6).toString('hex'); // acha a janela do player para escondê-la
 const PORTA_PADRAO = 8974;
 const SDK_URL = process.env.BLUESPOTIFY_SDK_URL || 'https://sdk.scdn.co/spotify-player.js';
 const TESTE = BASE_API !== 'https://api.spotify.com/v1';
@@ -34,7 +35,7 @@ async function config() {
   let c = {};
   try { c = (await p.settings()) || {}; } catch {}
   const porta = Number(c.porta);
-  return { clientId: String(c.clientId || '').trim(), porta: porta >= 1024 && porta <= 65535 ? Math.round(porta) : PORTA_PADRAO };
+  return { clientId: String(c.clientId || '').trim(), porta: porta >= 1024 && porta <= 65535 ? Math.round(porta) : PORTA_PADRAO, local: c.local !== false };
 }
 const redirectDe = (porta) => `http://127.0.0.1:${porta}/callback`;
 
@@ -129,12 +130,24 @@ function fundoLigar() {
   // windowsHide: o Edge abre a janela escondida; o som sai normalmente. Se já houver um Edge com este perfil, ele
   // abre a página e este processo termina logo: por isso "ligado" não depende do processo.
   const pr = spawn(nav, argumentosNavegador(url, perfil), { stdio: 'ignore', windowsHide: true });
+  esconderJanela(TITULO_TOCADOR);
   fundo.processo = pr;
   pr.once('error', (e) => { if (fundo.processo === pr) fundoParar('erro', 'Não deu para abrir o navegador: ' + e.message); });
   pr.once('exit', () => { if (fundo.processo === pr) fundo.processo = null; });
   clearTimeout(fundo.prazo);
   fundo.prazo = setTimeout(() => { if (fundo.fase === 'abrindo' || fundo.fase === 'carregando') fundoParar('erro', MSG_FUNDO.demora); }, 60000);
 }
+// Abre o player (se preciso) e espera ficar pronto: é o que as ações usam quando não há aparelho nenhum aberto
+acoes.garantirLocal = async () => {
+  if (!(await config()).local || premium === false) return '';
+  fundoLigar();
+  for (let i = 0; i < 100 && fundo.ligado && fundo.fase !== 'pronto'; i++) await new Promise((r) => setTimeout(r, 300));
+  return fundo.fase === 'pronto' ? fundo.id : '';
+};
+// o player dentro do WebView não ficou pronto neste PC: nas próximas vezes, direto para o de segundo plano
+let webview = null;
+p.data.get('webview').then((v) => { if (typeof v === 'boolean') webview = v; }).catch(() => {});
+
 // a página avisa a cada 5 s; sem aviso por 20 s, a janela foi fechada
 setInterval(() => { if (fundo.fase === 'pronto' && Date.now() - fundo.visto > 20000) fundoParar(); }, 5000).unref();
 
@@ -144,7 +157,7 @@ async function atenderTocador(rq, rs, u) {
     rs.end(typeof corpo === 'string' ? corpo : JSON.stringify(corpo));
   };
   if (!igual(u.searchParams.get('k'), CHAVE_TOCADOR)) return enviar(403, { erro: 'acesso negado' });
-  if (u.pathname === '/tocador' && rq.method === 'GET') return enviar(200, paginaTocador(SDK_URL), 'text/html; charset=utf-8');
+  if (u.pathname === '/tocador' && rq.method === 'GET') return enviar(200, paginaTocador(SDK_URL, TITULO_TOCADOR), 'text/html; charset=utf-8');
   if (rq.headers['sec-fetch-site'] && rq.headers['sec-fetch-site'] !== 'same-origin') return enviar(403, { erro: 'acesso negado' });
   if (u.pathname === '/tocador/token' && rq.method === 'GET') {
     try { return enviar(200, { token: fundo.ligado ? await sp.token() : '' }); } catch { return enviar(200, { token: '' }); }
@@ -155,8 +168,9 @@ async function atenderTocador(rq, rs, u) {
     fundo.visto = Date.now();
     const fase = ['carregando', 'pronto', 'erro', 'auth', 'sem-premium', 'rede'].includes(b.fase) ? b.fase : 'carregando';
     if (fase !== 'carregando' && fase !== 'pronto') { fundoParar(fase === 'sem-premium' ? 'sem-premium' : 'erro', String(b.msg || '').slice(0, 300)); if (fase === 'sem-premium') marcarPremium(false); return enviar(200, { fechar: true }); }
+    // ficou pronto agora: confere de novo que a janela não está à vista (a página pode ter recarregado)
+    if (fase === 'pronto' && fundo.fase !== 'pronto') { clearTimeout(fundo.prazo); esconderJanela(TITULO_TOCADOR, 5); }
     fundo.fase = fase; fundo.id = fase === 'pronto' ? String(b.id || '').slice(0, 100) : '';
-    if (fase === 'pronto') clearTimeout(fundo.prazo);
     return enviar(200, { fechar: false });
   }
   return enviar(404, { erro: 'rota desconhecida' });
@@ -172,7 +186,7 @@ const rotas = {
       try { usuario = await acoes.perfil(); }
       catch (e) { if (e.codigo === 'deslogado') return { ...(await rotas.estado()) }; aviso = { codigo: e.codigo, erro: e.message, esperar: e.esperar }; }
     }
-    return { configurado: !!c.clientId, logado, usuario, premium, redirect: redirectDe(c.porta), porta: c.porta, login, aviso, sdk: SDK_URL, teste: TESTE };
+    return { configurado: !!c.clientId, logado, usuario, premium, webview, redirect: redirectDe(c.porta), porta: c.porta, login, aviso, sdk: SDK_URL, teste: TESTE };
   },
   async entrar() {
     const c = await config();
@@ -209,6 +223,7 @@ const rotas = {
   async fundo() { if (!(await sp.logado())) throw new Falha('deslogado'); fundoLigar(); return fundoPublico(); },
   async 'fundo-estado'() { return fundoPublico(); },
   async 'fundo-parar'() { fundoParar(); return {}; },
+  async webview(q, corpo) { webview = corpo.ok === true ? true : corpo.ok === false ? false : null; p.data.set('webview', webview).catch(() => {}); return {}; },
   async lista(q) { return acoes.lista(q.tipo, { id: q.id, offset: q.offset, depois: q.depois }); },
   async busca(q) { return acoes.busca(q.q); },
   async player() { return acoes.player(); },

@@ -163,11 +163,12 @@ function sair() {
 // escondido, lib/fundo.mjs), que aparece no Spotify Connect com o mesmo nome e recebe os comandos pela Web API.
 // Assim dá para tocar sem o aplicativo do Spotify instalado.
 const Local = {
-  player: null, id: '', fase: 'desligado', msg: '', volume: 0.8, ativo: false, modo: '', timer: 0,
+  player: null, id: '', fase: 'desligado', msg: '', volume: 0.8, ativo: false, modo: '', timer: 0, reaberturas: 0,
   async ligar() {
     if (this.fase !== 'desligado' || !E.est || !E.est.sdk) return;
     this.fase = 'carregando';
-    if (!(await temWidevine())) return this.fundo();
+    // neste PC o player do WebView já falhou uma vez (ou não há DRM): direto para o de segundo plano, sem esperar
+    if (E.est.webview === false || !(await temWidevine())) return this.fundo();
     if (morto || this.fase !== 'carregando') return;
     this.modo = 'webview';
     // o WebView2 pode dizer que tem Widevine e mesmo assim o SDK não ficar pronto (nem avisar erro): sem o "ready"
@@ -189,7 +190,7 @@ const Local = {
       pl = new window.Spotify.Player({ name: 'BlueScreen', volume: this.volume, getOAuthToken: (cb) => { chamar('token').then((r) => cb(r.token)).catch(() => cb('')); } });
     } catch (e) { this.fase = 'erro'; this.msg = 'O player do Spotify não iniciou: ' + e.message; return; }
     this.player = pl;
-    pl.addListener('ready', ({ device_id }) => { if (this.modo !== 'webview') return; clearTimeout(this.timer); this.id = device_id; this.fase = 'pronto'; this.msg = ''; if (R.disp) pintarPlayer(); });
+    pl.addListener('ready', ({ device_id }) => { if (this.modo !== 'webview') return; clearTimeout(this.timer); this.id = device_id; this.fase = 'pronto'; this.msg = ''; if (R.disp) pintarPlayer(); if (E.est && E.est.webview !== true) { E.est.webview = true; chamar('webview', {}, { ok: true }).catch(() => {}); } });
     pl.addListener('not_ready', () => { this.id = ''; this.ativo = false; if (P.fonte === 'sdk') { P.fonte = ''; sincronizar(); } });
     pl.addListener('player_state_changed', (st) => {
       if (morto) return;
@@ -222,7 +223,10 @@ const Local = {
   // o player dentro do BlueScreen não serviu: solta ele e usa o de segundo plano (depois, roda `entao` com ele pronto)
   paraFundo(entao) {
     if (morto || this.modo !== 'webview') return;
-    clearTimeout(this.timer); this.soltar(); this.fundo(entao);
+    clearTimeout(this.timer); this.soltar();
+    if (E.est) E.est.webview = false;
+    chamar('webview', {}, { ok: false }).catch(() => {});
+    this.fundo(entao);
   },
   // player em segundo plano: pede ao servidor e acompanha até ficar pronto; depois confere de vez em quando
   // (o id do dispositivo muda se o player reiniciar)
@@ -236,8 +240,13 @@ const Local = {
       catch (e) { r = { fase: 'erro', msg: e.message }; }
       if (morto || this.modo !== 'fundo') return;
       const antes = this.fase + this.id;
-      if (r.fase === 'pronto') { this.fase = 'pronto'; this.id = r.id; this.msg = ''; if (entao) { const f = entao; entao = null; f(); } }
+      if (r.fase === 'pronto') { this.fase = 'pronto'; this.id = r.id; this.msg = ''; this.reaberturas = 0; if (entao) { const f = entao; entao = null; f(); } }
       else if (r.fase === 'sem-premium') { this.fase = 'sem-premium'; this.id = ''; marcarSemPremium(); return; }
+      else if (r.fase === 'desligado' && this.reaberturas < 3) {
+        // o player fechou (processo encerrado, plugin reiniciado): abre de novo sozinho, sem incomodar
+        this.reaberturas++; this.fase = 'carregando'; this.id = '';
+        try { r = await chamar('fundo', {}, {}); } catch { /* a próxima volta confere */ }
+      }
       else if (r.fase === 'erro' || r.fase === 'desligado') { this.fase = 'erro'; this.id = ''; this.msg = r.msg || 'O player em segundo plano fechou.'; }
       else { this.fase = 'carregando'; this.id = ''; }
       if (antes !== this.fase + this.id && R.disp) { pintado.disp = undefined; pintarPlayer(); }
@@ -255,6 +264,19 @@ const Local = {
     this.modo = '';
     if (this.fase === 'desligado') return;
     const sem = this.fase === 'sem-premium'; this.soltar(); this.fase = sem ? 'sem-premium' : 'desligado';
+  },
+  // O id do player do BlueScreen pronto para tocar, abrindo (ou reabrindo) se preciso; '' se não deu em `ms`.
+  async esperar(ms = 30000) {
+    if (!E.cfg.local || semPremium()) return '';
+    if (this.fase === 'pronto' && this.id) return this.id;
+    if (this.fase === 'desligado' || this.fase === 'erro') { this.reaberturas = 0; this.religar(); }
+    const fim = Date.now() + ms;
+    while (!morto && Date.now() < fim) {
+      await new Promise((r) => setTimeout(r, 300));
+      if (this.fase === 'pronto' && this.id) return this.id;
+      if (this.fase === 'erro' || this.fase === 'sem-premium') return '';
+    }
+    return '';
   },
   // depois de um erro: tenta de novo (Dispositivos › Tocar neste PC de novo)
   religar() { clearTimeout(this.timer); this.soltar(); this.modo = ''; this.fase = 'desligado'; this.msg = ''; this.ligar(); },
@@ -320,7 +342,16 @@ async function comando(c, otimista) {
   try { await chamar('comando', {}, c); if (E.est && E.est.premium == null) E.est.premium = true; depois(); return true; }
   catch (e) {
     depois(200);
-    if (e.codigo === 'sem-dispositivo') { dialogoDispositivos(c.acao === 'tocar' ? c : null); return false; }
+    if (e.codigo === 'sem-dispositivo') {
+      // nenhum aparelho aberto: toca no player do BlueScreen sem perguntar (abre ou reabre ele se precisar). A
+      // janela de dispositivos só aparece se ele não ficar pronto.
+      if (['tocar', 'retomar', 'fila', 'transferir'].includes(c.acao) && !c.semEspera) {
+        if (Local.fase !== 'pronto') toast('Preparando o player…', '', 'bsp');
+        const id = await Local.esperar();
+        if (id) return comando(c.acao === 'retomar' ? { acao: 'transferir', dispositivo: id, tocar: true, semEspera: true } : { ...c, dispositivo: id, semEspera: true });
+      }
+      dialogoDispositivos(c.acao === 'tocar' ? c : null); return false;
+    }
     if (e.codigo === 'proibido' && c.acao === 'volume') { toast('Este dispositivo não deixa mudar o volume de fora.', '', 'bsp'); return false; }
     falhou(e); return false;
   }
@@ -332,7 +363,7 @@ async function tocar(o, uriParaApp) {
   if (semPremium()) { if (uriParaApp) abrirNoApp(uriParaApp); return; }
   Local.ativar();
   const c = { acao: 'tocar', ...o };
-  if (!P.s.ativo && Local.id && !c.dispositivo) c.dispositivo = Local.id; // nada tocando em lugar nenhum: toca aqui
+  if (!P.s.ativo && !c.dispositivo) c.dispositivo = Local.id || (await Local.esperar()) || undefined; // nada tocando em lugar nenhum: toca aqui
   await comando(c);
 }
 function alternar() {
