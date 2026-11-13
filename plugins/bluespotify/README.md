@@ -4,7 +4,7 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 1.1.0 |
+| **Versão** | 1.1.1 |
 | **Licença** | MIT |
 | **Categoria** | Música e mídia |
 | **Precisa de** | BlueScreen 2.1.33 ou mais novo · Node.js 18+ |
@@ -116,6 +116,10 @@ Para testar sem conta, aponte o plugin para um servidor falso com as variáveis 
 Feito por Martin Hartfelder. Distribuído sob a licença MIT.
 
 ## Histórico de versões
+
+### 1.1.1
+
+- Quando o WebView do BlueScreen diz ter o DRM do Spotify mas o player dele não fica pronto em 10 s, não conecta ou não consegue tocar, o BlueSpotify passa sozinho para o player em segundo plano (Edge escondido) e recomeça a faixa lá. Antes, nesses casos, nenhum dispositivo "BlueScreen" aparecia e o plugin pedia para abrir o aplicativo do Spotify.
 
 ### 1.1.0
 

@@ -170,12 +170,16 @@ const Local = {
     if (!(await temWidevine())) return this.fundo();
     if (morto || this.fase !== 'carregando') return;
     this.modo = 'webview';
-    const criar = () => { if (!morto && this.fase === 'carregando') this.criar(); };
+    // o WebView2 pode dizer que tem Widevine e mesmo assim o SDK não ficar pronto (nem avisar erro): sem o "ready"
+    // em 10 s, toca pelo player em segundo plano
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.paraFundo(), 10000);
+    const criar = () => { if (!morto && this.modo === 'webview' && this.fase === 'carregando') this.criar(); };
     if (window.Spotify && window.Spotify.Player) return criar();
     window.onSpotifyWebPlaybackSDKReady = criar;
     if (!document.getElementById('bspSdk')) {
       const s = document.createElement('script'); s.id = 'bspSdk'; s.src = E.est.sdk; s.async = true;
-      s.onerror = () => { s.remove(); this.fase = 'erro'; this.msg = 'Não deu para carregar o player do Spotify (sem internet?).'; };
+      s.onerror = () => { s.remove(); this.paraFundo(); };
       document.head.appendChild(s);
     }
   },
@@ -185,7 +189,7 @@ const Local = {
       pl = new window.Spotify.Player({ name: 'BlueScreen', volume: this.volume, getOAuthToken: (cb) => { chamar('token').then((r) => cb(r.token)).catch(() => cb('')); } });
     } catch (e) { this.fase = 'erro'; this.msg = 'O player do Spotify não iniciou: ' + e.message; return; }
     this.player = pl;
-    pl.addListener('ready', ({ device_id }) => { this.id = device_id; this.fase = 'pronto'; this.msg = ''; if (R.disp) pintarPlayer(); });
+    pl.addListener('ready', ({ device_id }) => { if (this.modo !== 'webview') return; clearTimeout(this.timer); this.id = device_id; this.fase = 'pronto'; this.msg = ''; if (R.disp) pintarPlayer(); });
     pl.addListener('not_ready', () => { this.id = ''; this.ativo = false; if (P.fonte === 'sdk') { P.fonte = ''; sincronizar(); } });
     pl.addListener('player_state_changed', (st) => {
       if (morto) return;
@@ -196,9 +200,14 @@ const Local = {
     pl.addListener('initialization_error', ({ message }) => { console.warn('BlueSpotify SDK:', message); this.soltar(); this.fundo(); });
     pl.addListener('account_error', () => { this.fase = 'sem-premium'; this.soltar(); chamar('premium', {}, { valor: false }).catch(() => {}); marcarSemPremium(); });
     pl.addListener('authentication_error', ({ message }) => { console.warn('BlueSpotify SDK:', message); this.fase = 'erro'; this.msg = 'O Spotify recusou a conexão do player. Saia da conta e conecte de novo.'; this.soltar(); });
-    pl.addListener('playback_error', ({ message }) => { toast('O Spotify não conseguiu tocar esta faixa aqui' + (message ? ': ' + message : '.'), 'err', 'bsp'); });
+    pl.addListener('playback_error', ({ message }) => {
+      // o WebView não tocou (quase sempre o DRM que ele anunciou e não entrega): passa para o player em segundo plano
+      // e recomeça a faixa lá, do mesmo ponto
+      if (this.modo === 'webview') { const s = P.s, uri = s.faixa && s.faixa.uri, pos = posicaoAgora(); this.paraFundo(uri ? () => tocar({ ...(s.contexto ? { contexto: s.contexto, deUri: uri } : { uris: [uri] }), posMs: pos, dispositivo: this.id }) : null); return; }
+      toast('O Spotify não conseguiu tocar esta faixa aqui' + (message ? ': ' + message : '.'), 'err', 'bsp');
+    });
     pl.addListener('autoplay_failed', () => { toast('O navegador segurou o áudio: clique em tocar de novo.', '', 'bsp'); });
-    Promise.resolve(pl.connect()).then((ok) => { if (ok === false && this.fase === 'carregando') { this.fase = 'erro'; this.msg = this.msg || 'O player do Spotify não conectou.'; } }).catch(() => {});
+    Promise.resolve(pl.connect()).then((ok) => { if (ok === false && this.modo === 'webview') this.paraFundo(); }).catch(() => this.paraFundo());
   },
   converter(st) {
     const t = st.track_window.current_track, id = (u) => String(u || '').split(':').pop();
@@ -210,9 +219,14 @@ const Local = {
       dispositivo: { id: this.id, nome: 'BlueScreen', tipo: 'Computer', ativo: true, volume: Math.round(this.volume * 100), temVolume: true, local: true },
     };
   },
+  // o player dentro do BlueScreen não serviu: solta ele e usa o de segundo plano (depois, roda `entao` com ele pronto)
+  paraFundo(entao) {
+    if (morto || this.modo !== 'webview') return;
+    clearTimeout(this.timer); this.soltar(); this.fundo(entao);
+  },
   // player em segundo plano: pede ao servidor e acompanha até ficar pronto; depois confere de vez em quando
   // (o id do dispositivo muda se o player reiniciar)
-  fundo() {
+  fundo(entao) {
     this.modo = 'fundo'; this.fase = 'carregando'; this.msg = ''; this.id = '';
     clearTimeout(this.timer);
     const inicio = Date.now();
@@ -222,7 +236,7 @@ const Local = {
       catch (e) { r = { fase: 'erro', msg: e.message }; }
       if (morto || this.modo !== 'fundo') return;
       const antes = this.fase + this.id;
-      if (r.fase === 'pronto') { this.fase = 'pronto'; this.id = r.id; this.msg = ''; }
+      if (r.fase === 'pronto') { this.fase = 'pronto'; this.id = r.id; this.msg = ''; if (entao) { const f = entao; entao = null; f(); } }
       else if (r.fase === 'sem-premium') { this.fase = 'sem-premium'; this.id = ''; marcarSemPremium(); return; }
       else if (r.fase === 'erro' || r.fase === 'desligado') { this.fase = 'erro'; this.id = ''; this.msg = r.msg || 'O player em segundo plano fechou.'; }
       else { this.fase = 'carregando'; this.id = ''; }
