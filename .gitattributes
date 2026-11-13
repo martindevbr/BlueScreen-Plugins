@@ -1,0 +1,5 @@
+# finais de linha LF no repositório e nos clones: a ficha e a tabela gerada comparam texto
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
