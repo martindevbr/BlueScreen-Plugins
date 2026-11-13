@@ -55,7 +55,8 @@ const SEGREDOS = [
 ];
 
 // ---------- leitura ----------
-const lerTexto = (f) => fs.readFileSync(f, 'utf8').replace(/^﻿/, '');
+// CRLF vira LF: num clone do Windows (core.autocrlf) a ficha e a tabela não podem parecer desatualizadas
+const lerTexto = (f) => fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
 function arquivosDe(dir, rel = '') {
   const out = [];
   for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
@@ -317,11 +318,11 @@ function cmdVersoes(args) {
     if (!fs.existsSync(path.join(PLUGINS, id, 'plugin.json'))) { console.log(`- ${id}: removido`); continue; }
     const antes = git('show', `${ref}:plugins/${id}/plugin.json`);
     if (antes.status !== 0) { console.log(`${cor(32, '✓')} ${id}: plugin novo`); continue; }
-    const vAntes = (() => { try { return JSON.parse(antes.stdout.replace(/^﻿/, '')).version; } catch { return '0.0.0'; } })();
+    const vAntes = (() => { try { return JSON.parse(antes.stdout.replace(/^\uFEFF/, '')).version; } catch { return '0.0.0'; } })();
     const vAgora = carregar(id).manifesto?.version || '0.0.0';
     let codigo = arqs.filter((f) => !SO_DOCUMENTACAO(f));
     if (codigo.includes('plugin.json')) {
-      let mAntes = {}; try { mAntes = JSON.parse(antes.stdout.replace(/^﻿/, '')); } catch {}
+      let mAntes = {}; try { mAntes = JSON.parse(antes.stdout.replace(/^\uFEFF/, '')); } catch {}
       const mAgora = carregar(id).manifesto || {};
       const chaves = new Set([...Object.keys(mAntes), ...Object.keys(mAgora)]);
       const soMeta = [...chaves].every((k) => SO_METADADOS.has(k) || JSON.stringify(mAntes[k]) === JSON.stringify(mAgora[k]));
