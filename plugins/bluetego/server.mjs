@@ -1,6 +1,10 @@
 // Bluetego: servidor do plugin. Roda as transformações (a página não consegue: CORS, e a rede fica num lugar só),
 // guarda as respostas por alguns minutos para não repetir consultas e abre links no navegador.
 // As investigações não passam por aqui: a página grava direto em plugin.files.
+// Os nós do Automator (no.mjs) chegam por /ponte: uma porta local com uma chave sorteada a cada início, gravadas em
+// <pasta de dados>/ponte.json (só programas deste PC que leem a pasta de dados do plugin alcançam).
+import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -11,6 +15,7 @@ import { MAQUINAS } from './lib/maquinas.mjs';
 import { INICIO, podar } from './lib/inicio.mjs';
 import { pensar } from './lib/pistas.mjs';
 import { montarPedido, lerResposta } from './lib/ia.mjs';
+import { novoGrafo, roteiro, resumir, comoInvestigacao, aplicar } from './lib/automator.mjs';
 
 const require = createRequire(import.meta.url);
 const { Plugin } = require(path.join(process.env.BLUESCREEN_SDK, 'bluescreen.js'));
@@ -181,7 +186,8 @@ rota('catalogo', () => ({
   maquinas: MAQUINAS,
   inicio: INICIO,
 }));
-rota('transformar', async (b) => {
+rota('transformar', (b) => transformar(b));
+async function transformar(b) {
   const lim = await limite();
   const cfg = await p.settings().catch(() => ({}));
   // as entidades ligadas (só as que a transformação usa, como os domínios para os e-mails prováveis)
@@ -198,7 +204,7 @@ rota('transformar', async (b) => {
   const r = await rodar(String(b.t || ''), String(b.tipo || ''), String(b.valor || ''), { ...ctxRede, limite: lim, vizinhos, sitesAmplo }, b.completo);
   lembrar(k, r);
   return podar(r, poda);
-});
+}
 rota('extrair', (b) => ({ entidades: extrair(String(b.texto || '')).filter((e) => e.tipo !== 'texto').map((e) => ({ ...e, id: chave(e.tipo, e.valor) })) }));
 // o que a pessoa digitou: o tipo (o escolhido ou o adivinhado), o valor na forma canônica e o id
 rota('entidade', (b) => {
@@ -221,5 +227,117 @@ rota('abrir', (b) => {
   spawn('rundll32.exe', ['url.dll,FileProtocolHandler', u], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   return { ok: true };
 });
+
+// listas dos campos do Automator ("choicesFrom": "bluetego/opcoes?tipo=...")
+rota('opcoes', (b, q) => {
+  const nomeTipo = (t) => (TIPOS[t] && TIPOS[t].nome) || t;
+  if (q.tipo === 'roteiros') return { choices: [{ value: 'olhar', label: 'Primeiro olhar (rápido, qualquer tipo)' }, ...MAQUINAS.map((m) => ({ value: m.id, label: `${m.nome} (${nomeTipo(m.de)})` }))] };
+  if (q.tipo === 'transformacoes') return { choices: [...TRANSFORMACOES].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((t) => ({ value: t.id, label: `${t.nome} · ${t.de.map(nomeTipo).join(', ')}${t.cofre ? ' (chave no Cofre)' : ''}` })) };
+  if (q.tipo === 'tipos') return { choices: [{ value: 'auto', label: 'Adivinhar pelo valor' }, ...Object.entries(TIPOS).map(([v, x]) => ({ value: v, label: x.nome }))] };
+  throw new Falha('lista desconhecida: ' + q.tipo, { status: 404 });
+});
+
+// ---------- nós do Automator ----------
+const NOMES = Object.fromEntries(TRANSFORMACOES.map((t) => [t.id, { nome: t.nome, de: t.de }]));
+function entidade(valor, tipoPedido) {
+  const bruto = String(valor ?? '').trim();
+  if (!bruto) throw new Falha('Nada para investigar: o valor chegou vazio.');
+  if (!/[\p{L}\p{N}]/u.test(bruto)) throw new Falha('Esse valor não tem letras nem números: use um domínio, e-mail, nome, telefone, IP…');
+  const adivinhado = detectar(bruto);
+  const tipo = tipoValido(tipoPedido) ? tipoPedido : adivinhado;
+  const v = normalizar(tipo, bruto);
+  return { tipo, valor: v, id: chave(tipo, v), adivinhado, tipo_nome: TIPOS[tipo].nome };
+}
+// o texto que chega de outro nó: o valor direto, ou o campo "valor" de um objeto (a saída de Reconhecer entidade)
+const valorDe = (x, entrada) => {
+  const v = x != null && String(x).trim() !== '' ? x : entrada;
+  if (v && typeof v === 'object') return v.valor ?? v.value ?? v.semente?.valor ?? '';
+  return v ?? '';
+};
+const transformarNo = (t, n, poda) => transformar({ t, tipo: n.tipo, valor: n.valor, poda, completo: n.tipo === 'texto' ? n.props.completo || n.valor : undefined });
+async function gravar(g, nome) {
+  const inv = comoInvestigacao(g, nome);
+  await p.files.write('investigacoes/' + inv.id + '.json', JSON.stringify(inv));
+  return { id: inv.id, nome: inv.nome };
+}
+const NOS = {
+  async identificar(pr, entrada) { return entidade(valorDe(pr.valor, entrada), pr.tipo); },
+  async extrair(pr, entrada) {
+    const texto = typeof (pr.texto || entrada) === 'object' ? JSON.stringify(pr.texto || entrada) : String(pr.texto || entrada || '');
+    const so = String(pr.tipos || '').split(/[,;\s]+/).filter(tipoValido);
+    const l = extrair(texto).filter((e) => e.tipo !== 'texto' && (!so.length || so.includes(e.tipo)));
+    return l.map((e) => ({ tipo: e.tipo, tipo_nome: TIPOS[e.tipo].nome, valor: e.valor }));
+  },
+  async transformar(pr, entrada) {
+    const t = TRANSFORMACOES.find((x) => x.id === String(pr.transformacao || '').trim());
+    if (!t) throw new Falha('Escolha a transformação no campo Transformação.');
+    // sem tipo escolhido: o adivinhado, se a transformação aceita; senão o único tipo que ela aceita (um nome vira pessoa)
+    const bruto = valorDe(pr.valor, entrada), adiv = detectar(String(bruto).trim());
+    const e = entidade(bruto, tipoValido(pr.tipo) ? pr.tipo : t.de.includes(adiv) || t.de.length > 1 ? adiv : t.de[0]);
+    if (!t.de.includes(e.tipo)) throw new Falha(`"${t.nome}" serve para ${t.de.map((x) => TIPOS[x].nome).join(', ')}, e o valor é ${TIPOS[e.tipo].nome}. Escolha o tipo no campo Tipo.`);
+    const g = novoGrafo(e);
+    const r = await transformarNo(t.id, g.nos.get(e.id));
+    aplicar(g, g.nos.get(e.id), t.id, r);
+    const saida = resumir(g, e, TIPOS, { transformacao: t.nome, ...(r.aviso ? { aviso: r.aviso } : {}) });
+    if (pr.salvar === 'sim') saida.investigacao = await gravar(g, pr.nome || `${t.nome}: ${e.valor}`);
+    return saida;
+  },
+  async investigar(pr, entrada) {
+    const e = entidade(valorDe(pr.valor, entrada), pr.tipo);
+    const id = String(pr.roteiro || 'olhar');
+    let passos, escopo = false, nome;
+    if (id === 'olhar') {
+      passos = INICIO[e.tipo];
+      nome = 'Primeiro olhar';
+      // tipo sem roteiro curto: as transformações rápidas dele, como a tela faz
+      if (!passos) passos = TRANSFORMACOES.filter((t) => t.rapida && t.de.includes(e.tipo)).map((t) => ({ t: t.id, max: 1 }));
+    } else {
+      const m = MAQUINAS.find((x) => x.id === id);
+      if (!m) throw new Falha('Máquina desconhecida: ' + id + '. Escolha uma no campo Roteiro.');
+      if (m.de !== e.tipo) throw new Falha(`A máquina "${m.nome}" começa num ${TIPOS[m.de].nome}, e o valor é ${TIPOS[e.tipo].nome}. Troque o roteiro ou escolha o tipo.`);
+      passos = m.passos; escopo = !!m.escopo; nome = m.nome;
+    }
+    if (!passos.length) throw new Falha(`Nenhuma transformação automática para ${TIPOS[e.tipo].nome}.`);
+    const g = novoGrafo(e);
+    const inicio = Date.now();
+    const r = await roteiro(g, g.nos.get(e.id), passos, { escopo, transformar: transformarNo, nomes: NOMES, avisar: (x) => g.historico.unshift({ quando: new Date().toISOString(), texto: x }) });
+    g.historico.unshift({ quando: new Date().toISOString(), texto: `${nome} pelo Automator em ${e.valor}: ${r.novas} entidades` });
+    const saida = resumir(g, e, TIPOS, {
+      roteiro: nome, segundos: Math.round((Date.now() - inicio) / 100) / 10,
+      ...(r.foraDoEscopo ? { fora_do_escopo: r.foraDoEscopo } : {}), avisos: r.avisos, erros: r.erros,
+    });
+    if (pr.salvar === 'sim') saida.investigacao = await gravar(g, pr.nome || `${nome}: ${e.valor}`);
+    return saida;
+  },
+};
+
+const PASTA_DADOS = process.env.BLUESCREEN_PLUGIN_DATA || '';
+const ARQ_PONTE = PASTA_DADOS ? path.join(PASTA_DADOS, 'ponte.json') : '';
+const CHAVE_PONTE = crypto.randomBytes(32).toString('hex');
+const igual = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+const ponte = http.createServer(async (rq, rs) => {
+  const enviar = (status, corpoR) => { rs.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); rs.end(JSON.stringify(corpoR)); };
+  // um navegador nunca chega aqui: sem origem, sem sec-fetch e com a chave que só a pasta de dados tem
+  if (rq.url !== '/ponte' || rq.method !== 'POST' || rq.headers.origin || rq.headers['sec-fetch-site'] || !igual(rq.headers['x-bluetego-chave'], CHAVE_PONTE)) return enviar(403, { ok: false, erro: 'acesso negado' });
+  try {
+    const partes = []; let n = 0;
+    for await (const c of rq) { n += c.length; if (n > 4e6) throw new Falha('Pedido grande demais.'); partes.push(c); }
+    const b = JSON.parse(Buffer.concat(partes).toString('utf8') || '{}');
+    const fn = Object.hasOwn(NOS, b.no) ? NOS[b.no] : null;
+    if (!fn) return enviar(200, { ok: false, erro: 'Nó desconhecido: ' + b.no });
+    enviar(200, { ok: true, valor: await fn(b.params || {}, b.entrada) });
+  } catch (e) {
+    if (!e.status) console.error(e);
+    enviar(200, { ok: false, erro: e.message || String(e), cofre: e.cofre || '' });
+  }
+});
+ponte.listen(0, '127.0.0.1', () => {
+  if (!ARQ_PONTE) return;
+  try { fs.mkdirSync(PASTA_DADOS, { recursive: true }); fs.writeFileSync(ARQ_PONTE, JSON.stringify({ porta: ponte.address().port, chave: CHAVE_PONTE, pid: process.pid }), { mode: 0o600 }); }
+  catch (e) { console.error('Bluetego: não gravei ponte.json (os nós do Automator não vão funcionar): ' + e.message); }
+});
+ponte.unref();
+process.on('exit', () => { try { if (ARQ_PONTE) fs.rmSync(ARQ_PONTE, { force: true }); } catch {} });
+for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, () => process.exit(0));
 
 p.run();

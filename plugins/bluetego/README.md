@@ -4,10 +4,11 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 0.11.0 |
+| **Versão** | 0.12.0 |
 | **Licença** | MIT |
 | **Categoria** | Outros |
 | **Precisa de** | BlueScreen 2.1.33 ou mais novo · Node.js 18+ |
+| **Automator** | 5 nós (categoria Bluetego) |
 | **Código** | [plugins/bluetego](https://github.com/martindevbr/BlueScreen-Plugins/tree/main/plugins/bluetego) |
 <!-- ficha:fim -->
 
@@ -194,6 +195,20 @@ As marcadas com ⚡ são as rápidas, que o duplo clique roda.
 
 Cada passo tem um teto de entidades, a máquina para sozinha depois de 600 entidades novas, e o × na barra de progresso para tudo.
 
+## Nós do Automator
+
+O Bluetego acrescenta a categoria **Bluetego** à paleta do Automator, para investigar sem abrir o grafo: monitorar a exposição de um domínio toda semana, conferir os indicadores que chegam num e-mail, levantar um fornecedor antes da reunião.
+
+| Nó | Para quê |
+|---|---|
+| **Investigar** | Roda o primeiro olhar ou uma das máquinas num valor e devolve a semente, as entidades por tipo, os alertas e as ligações. Com **Guardar no Bluetego**, o grafo vira uma investigação para abrir e continuar na tela. |
+| **Rodar transformação** | Uma das transformações (DNS, RDAP, contas, sanções, portas, CNPJ…) num valor. A lista mostra os tipos que cada uma aceita. |
+| **Tem alerta?** | Sai por sim quando a investigação achou algo grave (porta exposta, CVE, domínio sem DMARC, empresa baixada…) e por não quando está limpo. |
+| **Achar entidades no texto** | Acha domínios, IPs, e-mails, telefones, CNPJs, URLs, hashes e CVEs num texto. Junto com **Para cada item** e **Investigar**, cada indicador vira uma investigação. |
+| **Reconhecer entidade** | Diz o que é um valor e o devolve na forma certa (CNPJ com pontuação, telefone com +55, domínio em minúsculas). |
+
+As consultas passam pelo servidor do plugin, com o mesmo cache e as mesmas chaves do Cofre da tela. Exemplo de fluxo: Agenda (segunda, 8h) → Investigar (`minhaempresa.com.br`, Superfície de ataque) → Tem alerta? → no sim, Notificação com `{{input.alertas}}`.
+
 ## Configurações
 
 Aba Plugins › engrenagem do Bluetego:
@@ -260,15 +275,20 @@ node tests/empresa.test.mjs
 node tests/sancoes-br.test.mjs
 node tests/ip.test.mjs
 node tests/localizar.test.mjs
+node tests/automator.test.mjs
 ```
 
-Os testes não usam a rede: cada fonte responde por um `fetch` falso. A lógica fica em `lib/`: `entidades.mjs` (tipos, detecção, normalização e extração), `transformacoes.mjs` (as transformações), `maquinas.mjs`, `pistas.mjs` (o raciocínio sem IA), `metadados.mjs` (PDF e Office, sem dependências), `maigret.mjs` (a busca ampla de contas) e `ia.mjs` (o pedido e a conferência da resposta da IA). O `server.mjs` liga a rede, o cache e as rotas; o `ui.js` desenha o grafo num canvas, sem bibliotecas de fora.
+Os testes não usam a rede: cada fonte responde por um `fetch` falso. A lógica fica em `lib/`: `entidades.mjs` (tipos, detecção, normalização e extração), `transformacoes.mjs` (as transformações), `maquinas.mjs`, `pistas.mjs` (o raciocínio sem IA), `metadados.mjs` (PDF e Office, sem dependências), `maigret.mjs` (a busca ampla de contas) e `ia.mjs` (o pedido e a conferência da resposta da IA). `automator.mjs` monta o grafo dos nós do Automator sem tela. O `server.mjs` liga a rede, o cache, as rotas e a ponte local dos nós (o `no.mjs` lê a porta e a chave em `ponte.json`, na pasta de dados); o `ui.js` desenha o grafo num canvas, sem bibliotecas de fora.
 
 ## Autor e licença
 
 Feito por Martin Hartfelder. Licença MIT (veja o campo `license` do `plugin.json`).
 
 ## Histórico de versões
+
+### 0.12.0
+
+- **Nós no Automator:** Investigar (primeiro olhar ou qualquer máquina, podendo guardar o resultado como investigação), Rodar transformação, Tem alerta?, Achar entidades no texto e Reconhecer entidade. As listas de roteiros, transformações e tipos vêm do próprio Bluetego.
 
 ### 0.11.0
 

@@ -1,0 +1,18 @@
+{
+  "id": "proxy4auto",
+  "name": "Proxy4Auto",
+  "description": "Nós do Automator para o localhost-proxy: liga e desliga o proxy, aponta nomes locais para serviços da internet, testa destinos, faz requisições pelo nome local, confere se o disfarce vaza o destino e acompanha o tráfego.",
+  "version": "0.1.0",
+  "author": "Martin Hartfelder",
+  "license": "MIT",
+  "category": "desenvolvimento",
+  "keywords": ["proxy", "localhost", "proxy reverso", "hosts", "dns", "automator", "vercel", "cloudflare", "api"],
+  "minBlueScreen": "2.1.33",
+  "icon": "icon.svg",
+  "order": 80,
+  "server": "server.mjs",
+  "settings": [
+    { "key": "painel", "label": "Endereço do painel do proxy", "default": "http://127.0.0.1:7070", "help": "Onde o painel do localhost-proxy responde (porta_painel do config.txt). Só neste PC." },
+    { "key": "pasta", "label": "Pasta do proxy", "default": "", "help": "A pasta com o proxy.js, para Ligar o proxy. Vazio: usa a do proxy que estiver rodando." }
+  ]
+}

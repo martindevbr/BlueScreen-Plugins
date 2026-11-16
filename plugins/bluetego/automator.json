@@ -1,0 +1,85 @@
+{
+  "nodes": [
+    {
+      "type": "investigar", "name": "Investigar", "category": "Bluetego",
+      "desc": "Investiga um domínio, IP, e-mail, apelido, nome, CNPJ, telefone… com o primeiro olhar ou uma das máquinas do Bluetego.",
+      "keywords": ["osint", "maltego", "recon", "máquina", "domínio", "pegada", "superfície de ataque", "due diligence"],
+      "takes": "any", "gives": "object",
+      "expects": "Um valor para investigar (texto). Se o campo Valor ficar vazio, usa o que chega, ou o campo valor de um objeto.",
+      "returns": "A semente com as propriedades, quantas entidades por tipo, os alertas, a lista de entidades e as ligações. Com Salvar, também a investigação criada no Bluetego.",
+      "sample": { "semente": { "tipo": "dominio", "tipo_nome": "Domínio", "valor": "exemplo.com.br", "props": { "DMARC": "ausente" } }, "total": 14, "contagem": { "ip": 2, "email": 3, "organizacao": 1 }, "por_tipo": { "ip": ["203.0.113.10", "203.0.113.11"], "email": ["contato@exemplo.com.br"] }, "tem_alerta": true, "alertas": [{ "tipo": "porta", "tipo_nome": "Porta aberta", "valor": "203.0.113.10:3389", "alerta": true }], "entidades": [{ "tipo": "ip", "tipo_nome": "Endereço IP", "valor": "203.0.113.10" }], "ligacoes": [{ "de": "exemplo.com.br", "para": "203.0.113.10", "como": "resolve para" }], "roteiro": "Primeiro olhar", "segundos": 8.4, "avisos": [], "erros": [], "investigacao": { "id": "k3j2h1g0", "nome": "Primeiro olhar: exemplo.com.br" } },
+      "params": { "valor": "", "tipo": "auto", "roteiro": "olhar", "salvar": "nao", "nome": "" },
+      "fields": [
+        { "name": "valor", "label": "Valor", "kind": "text", "placeholder": "Vazio: o que chega do nó anterior", "help": "Domínio, IP, e-mail, @apelido, nome, CNPJ, CPF, CEP, telefone, URL ou CVE." },
+        { "name": "tipo", "label": "Tipo", "kind": "text", "choicesFrom": "bluetego/opcoes?tipo=tipos", "help": "Adivinhar pelo valor serve quase sempre. Escolha quando um nome curto puder ser apelido ou pessoa." },
+        { "name": "roteiro", "label": "Roteiro", "kind": "text", "choicesFrom": "bluetego/opcoes?tipo=roteiros", "help": "Primeiro olhar é curto e serve para qualquer tipo. Cada máquina começa num tipo só (está entre parênteses) e demora mais." },
+        { "name": "salvar", "label": "Guardar no Bluetego", "kind": "select", "options": [{ "value": "nao", "label": "Não" }, { "value": "sim", "label": "Sim, como investigação nova" }], "help": "Sim: o grafo aparece na lista de investigações do Bluetego para você abrir e continuar." },
+        { "name": "nome", "label": "Nome da investigação", "kind": "text", "placeholder": "Vazio: roteiro e valor", "show": { "salvar": ["sim"] } }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 1800000 }
+    },
+    {
+      "type": "transformar", "name": "Rodar transformação", "category": "Bluetego",
+      "desc": "Roda uma das transformações do Bluetego (DNS, WHOIS, contas, sanções, portas, CNPJ…) num valor.",
+      "keywords": ["osint", "dns", "whois", "rdap", "cnpj", "github", "shodan", "internetdb", "sanções"],
+      "takes": "any", "gives": "object",
+      "expects": "Um valor (texto). Se o campo Valor ficar vazio, usa o que chega.",
+      "returns": "O mesmo formato de Investigar: a semente com as propriedades achadas, as entidades novas, os alertas e um aviso, se houver.",
+      "sample": { "semente": { "tipo": "ip", "tipo_nome": "Endereço IP", "valor": "8.8.8.8", "props": { "País": "Estados Unidos" } }, "total": 1, "contagem": { "asn": 1 }, "por_tipo": { "asn": ["AS15169"] }, "tem_alerta": false, "alertas": [], "entidades": [{ "tipo": "asn", "tipo_nome": "Sistema autônomo", "valor": "AS15169", "rotulo": "GOOGLE" }], "ligacoes": [{ "de": "8.8.8.8", "para": "GOOGLE", "como": "anunciado por" }], "transformacao": "Sistema autônomo do IP" },
+      "params": { "transformacao": "", "valor": "", "tipo": "auto", "salvar": "nao", "nome": "" },
+      "fields": [
+        { "name": "transformacao", "label": "Transformação", "kind": "text", "required": true, "choicesFrom": "bluetego/opcoes?tipo=transformacoes", "help": "Depois do ponto, os tipos de valor que ela aceita." },
+        { "name": "valor", "label": "Valor", "kind": "text", "placeholder": "Vazio: o que chega do nó anterior" },
+        { "name": "tipo", "label": "Tipo", "kind": "text", "choicesFrom": "bluetego/opcoes?tipo=tipos" },
+        { "name": "salvar", "label": "Guardar no Bluetego", "kind": "select", "options": [{ "value": "nao", "label": "Não" }, { "value": "sim", "label": "Sim, como investigação nova" }] },
+        { "name": "nome", "label": "Nome da investigação", "kind": "text", "placeholder": "Vazio: transformação e valor", "show": { "salvar": ["sim"] } }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 600000 }
+    },
+    {
+      "type": "alertas", "name": "Tem alerta?", "category": "Bluetego",
+      "desc": "Segue por sim quando a investigação achou algo grave (porta exposta, CVE, domínio sem DMARC, empresa baixada…) e por não quando está tudo limpo.",
+      "keywords": ["alerta", "risco", "condição", "monitorar"],
+      "takes": "object", "gives": "object",
+      "inputs": ["in"], "outputs": ["true", "false"],
+      "expects": "A saída de Investigar ou de Rodar transformação.",
+      "returns": "Quantos alertas e quais (tipo, valor e propriedades de cada um).",
+      "sample": { "tem_alerta": true, "quantos": 1, "alertas": [{ "tipo": "porta", "tipo_nome": "Porta aberta", "valor": "203.0.113.10:3389", "alerta": true }], "semente": "exemplo.com.br" },
+      "params": { "dados": "" },
+      "fields": [
+        { "name": "dados", "label": "Olhar em", "kind": "text", "placeholder": "Vazio: o que chega do nó anterior" }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 30000 }
+    },
+    {
+      "type": "extrair", "name": "Achar entidades no texto", "category": "Bluetego",
+      "desc": "Acha domínios, IPs, e-mails, telefones, CNPJs, CPFs, URLs, hashes e CVEs num texto (um e-mail, um log, uma página).",
+      "keywords": ["extrair", "ioc", "indicadores", "e-mail", "ip", "log"],
+      "takes": "text", "gives": "list",
+      "expects": "Um texto. Se o campo Texto ficar vazio, usa o que chega.",
+      "returns": "Lista de entidades, cada uma com tipo, tipo_nome e valor. Bom para usar com Para cada item e Investigar.",
+      "sample": [{ "tipo": "dominio", "tipo_nome": "Domínio", "valor": "exemplo.com.br" }, { "tipo": "ip", "tipo_nome": "Endereço IP", "valor": "203.0.113.10" }],
+      "params": { "texto": "", "tipos": "" },
+      "fields": [
+        { "name": "texto", "label": "Texto", "kind": "area", "placeholder": "Vazio: o que chega do nó anterior" },
+        { "name": "tipos", "label": "Só destes tipos", "kind": "text", "placeholder": "Vazio: todos. Ex.: dominio, ip, email", "help": "Separe por vírgula: dominio, ip, email, url, telefone, cnpj, cpf, hash, cve, apelido." }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 30000 }
+    },
+    {
+      "type": "identificar", "name": "Reconhecer entidade", "category": "Bluetego",
+      "desc": "Diz o que é um valor (domínio, IP, e-mail, CNPJ, pessoa…) e o devolve na forma certa.",
+      "keywords": ["tipo", "detectar", "normalizar", "validar"],
+      "takes": "text", "gives": "object",
+      "expects": "Um texto. Se o campo Valor ficar vazio, usa o que chega.",
+      "returns": "O tipo, o nome do tipo e o valor normalizado (minúsculas, CNPJ com pontuação, telefone com +55…).",
+      "sample": { "tipo": "cnpj", "valor": "33.000.167/0001-01", "id": "cnpj:33.000.167/0001-01", "adivinhado": "cnpj", "tipo_nome": "CNPJ" },
+      "params": { "valor": "", "tipo": "auto" },
+      "fields": [
+        { "name": "valor", "label": "Valor", "kind": "text", "placeholder": "Vazio: o que chega do nó anterior" },
+        { "name": "tipo", "label": "Tipo", "kind": "text", "choicesFrom": "bluetego/opcoes?tipo=tipos" }
+      ],
+      "run": { "program": "node", "args": ["no.mjs"], "timeout": 60000 }
+    }
+  ]
+}

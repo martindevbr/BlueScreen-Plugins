@@ -1,8 +1,8 @@
 {
   "id": "bluetego",
   "name": "Bluetego",
-  "description": "Investigação OSINT em grafo, no estilo do Maltego, sem conta e sem custo: 105 transformações em fontes públicas, contas em até 2.434 sites, sanções, processos e Diário Oficial por nome, reputação de IP, chaves PGP, metadados, pistas que aprendem e IA que conduz a investigação.",
-  "version": "0.11.0",
+  "description": "Investigação OSINT em grafo, no estilo do Maltego, sem conta e sem custo: 105 transformações em fontes públicas, contas em até 2.434 sites, sanções, processos e Diário Oficial por nome, reputação de IP, chaves PGP, metadados, pistas que aprendem e IA que conduz a investigação. Nós no Automator.",
+  "version": "0.12.0",
   "author": "Martin Hartfelder",
   "license": "MIT",
   "category": "outros",
