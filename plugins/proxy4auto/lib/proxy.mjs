@@ -134,6 +134,15 @@ export function conferirDisfarce({ status, headers = {}, corpo = '' }, destino) 
   return { limpo: vaz.length === 0, vazamentos: vaz, avisos };
 }
 
+// ---------- hosts ----------
+// o bloco que o proxy grava no hosts do Windows (as mesmas marcas do proxy.js), tirado como ele mesmo tira
+const MARCA_INI = '# >>> localhost-proxy (gerado automaticamente, nao edite este bloco)';
+const MARCA_FIM = '# <<< localhost-proxy';
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export function semBlocoDoProxy(texto) {
+  return String(texto).replace(new RegExp(`\\r?\\n?${esc(MARCA_INI)}[\\s\\S]*?${esc(MARCA_FIM)}\\r?\\n?`), '\r\n');
+}
+
 // ---------- tráfego ----------
 // linhas de requisição do log do painel ("nome GET /x 200 34ms") viram objetos; filtro por rota, erro e janela
 export function trafego(log, { rota = null, soErros = false, minutos = 0, quantas = 50, agora = Date.now() } = {}) {

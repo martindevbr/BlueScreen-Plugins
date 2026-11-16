@@ -4,9 +4,11 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import path from 'node:path';
+import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { lerAlvo, acharRota, sugerirNome, normalizarDestino, paraLocal, paraOriginal, conferirDisfarce, trafego, painelValido, baseDominio } from '../lib/proxy.mjs';
+import { SCRIPTS, psTexto } from '../lib/admin.mjs';
+import { semBlocoDoProxy, lerAlvo, acharRota, sugerirNome, normalizarDestino, paraLocal, paraOriginal, conferirDisfarce, trafego, painelValido, baseDominio } from '../lib/proxy.mjs';
 
 const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 let ok = 0;
@@ -78,6 +80,22 @@ caso('conferirDisfarce: o que o proxy limpa e o que vaza', () => {
   const citado = conferirDisfarce({ status: 200, headers: {}, corpo: 'Copyright exemplo.com 2026' }, 'https://exemplo.com');
   assert.equal(citado.limpo, true);
   assert.ok(citado.avisos.some((a) => /nome do site/.test(a.o_que)));
+});
+caso('semBlocoDoProxy: tira só o bloco do proxy do hosts', () => {
+  const h = '127.0.0.1 meu-site\r\n# >>> localhost-proxy (gerado automaticamente, nao edite este bloco)\r\n127.0.0.1\tlocalhost-api\r\n# <<< localhost-proxy\r\n10.0.0.1 nas\r\n';
+  assert.equal(semBlocoDoProxy(h), '127.0.0.1 meu-site\r\n10.0.0.1 nas\r\n');
+  assert.equal(semBlocoDoProxy('sem bloco\r\n'), 'sem bloco\r\n');
+});
+caso('sem .bat: o plugin não chama arquivo de lote', () => {
+  const t = fs.readFileSync(path.join(RAIZ, 'nos.mjs'), 'utf8');
+  assert.ok(!/['"][^'"]*\.(bat|cmd)['"]/i.test(t) && !/cmd\.exe/i.test(t), 'nos.mjs chama .bat ou cmd.exe');
+});
+caso('admin: scripts com caminhos escapados e sem .bat/.ps1', () => {
+  assert.equal(psTexto("C:\\it's"), "'C:\\it''s'");
+  const s = SCRIPTS.programa('C:\\saida.json', '', 'C:\\Program Files\\x.exe', ['com espaço', 'a'], 'C:\\P');
+  assert.ok(s.includes("'\"com espaço\"'") && s.includes("-WorkingDirectory 'C:\\P'"), s);
+  for (const k of ['dns_proxy', 'dns_restaurar']) { const x = SCRIPTS[k]('C:\\s.json', 'C:\\bk.json'); assert.ok(/Set-DnsClientServerAddress/.test(x) && /bk\.json/.test(x)); assert.ok(!/\.(bat|ps1)\b/i.test(x)); }
+  assert.ok(SCRIPTS.dns_proxy('s', 'C:\\bk.json').includes("-not (Test-Path 'C:\\bk.json')"), 'não sobrescreve o DNS guardado');
 });
 caso('trafego: janela, rota, erros e tempos', () => {
   const agora = Date.parse('2026-11-16T12:00:00Z');
@@ -181,6 +199,11 @@ caso('nós: apontar, listar, testar, pedir, disfarce, converter, ajustar, remove
 
     r = await no(P, 'ajustar', { ajuste: 'reescrever_links', ligado: 'nao' });
     assert.equal(r.v.depois, false);
+
+    r = await no(P, 'admin', { acao: 'dns_proxy' });
+    assert.equal(r.code, 1); assert.match(r.err, /DNS do proxy não está respondendo/, 'com o DNS do proxy desligado, nem pede a permissão');
+    r = await no(P, 'admin', { acao: 'programa', programa: '' });
+    assert.match(r.err, /Informe o programa/);
 
     r = await no(P, 'trafego', { so_erros: 'sim' });
     assert.equal(r.v.erros, 1);

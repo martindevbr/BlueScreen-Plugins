@@ -6,7 +6,8 @@ import path from 'node:path';
 import http from 'node:http';
 import { spawn, execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { configuracoes, lerAlvo, acharRota, descreverRota, sugerirNome, normalizarDestino, paraLocal, paraOriginal, conferirDisfarce, trafego } from './lib/proxy.mjs';
+import { SCRIPTS } from './lib/admin.mjs';
+import { semBlocoDoProxy, configuracoes, lerAlvo, acharRota, descreverRota, sugerirNome, normalizarDestino, paraLocal, paraOriginal, conferirDisfarce, trafego } from './lib/proxy.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 class Falha extends Error {}
@@ -50,25 +51,68 @@ function rotaDe(est, texto) {
 const enxuta = (r) => ({ id: r.id, tipo: r.tipo, ...(r.nome ? { nome: r.nome } : {}), porta: r.porta, local: r.local, destino: r.destino, ...(r.stats ? { requisicoes: r.stats.total, erros: r.stats.erros, ultimo_status: r.stats.status, ultimo_ms: r.stats.ms } : {}) });
 
 // ---------- processo do proxy ----------
-const rodar = (prog, args, opt = {}) => new Promise((ok) => execFile(prog, args, { windowsHide: true, timeout: 20000, ...opt }, (e, out, err) => ok({ ok: !e, out: String(out || ''), err: String(err || e?.message || '') })));
+const rodar = (prog, args, opt = {}) => new Promise((ok) => execFile(prog, args, { windowsHide: true, timeout: 20000, ...opt }, (e, out, err) => ok({ ok: !e, codigo: e ? (typeof e.code === 'number' ? e.code : -1) : 0, out: String(out || ''), err: String(err || e?.message || '') })));
 // PID de quem escuta na porta (netstat) e a linha de comando dele: só mexemos se for o proxy.js
 async function processoNaPorta(porta) {
   const n = await rodar('netstat', ['-ano', '-p', 'TCP']);
   const linha = n.out.split(/\r?\n/).find((l) => new RegExp(`^\\s*TCP\\s+\\S+:${porta}\\s+\\S+\\s+LISTENING\\s+(\\d+)`, 'i').test(l));
   if (!linha) return null;
   const pid = Number(linha.trim().split(/\s+/).pop());
-  // a linha de comando dele e a de quem o abriu (o iniciar.bat roda "node proxy.js" sem o caminho)
+  // a linha de comando dele e a de quem o abriu (quando ele roda "node proxy.js" sem o caminho, a pasta está no pai)
   // De um processo de administrador o Windows não mostra a linha de comando: fica só o nome (node)
   const p = await rodar('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).ProcessName; '---'; $p = Get-CimInstance Win32_Process -Filter "ProcessId=${pid}"; $p.CommandLine; '---'; if ($p) { (Get-CimInstance Win32_Process -Filter "ProcessId=$($p.ParentProcessId)").CommandLine }`]);
   const [nome, comando, pai] = p.out.split(/\r?\n?---\r?\n/);
   return { pid, nome: (nome || '').trim().toLowerCase(), comando: (comando || '').trim(), pai: (pai || '').trim() };
 }
+// Roda um programa como administrador pelo próprio Windows (Start-Process -Verb RunAs): aparece a pergunta do
+// controle de conta, sem janela de console. Devolve false quando a pessoa recusa.
+async function comoAdmin(programa, args, { pasta, esperarFim = true } = {}) {
+  const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+  const lista = args.map((a) => q(/[\s"]/.test(a) ? '"' + String(a).replace(/"/g, '\\"') + '"' : a)).join(',');
+  const cmd = `try { Start-Process -FilePath ${q(programa)}${args.length ? ' -ArgumentList ' + lista : ''}${pasta ? ' -WorkingDirectory ' + q(pasta) : ''} -Verb RunAs -WindowStyle Hidden${esperarFim ? ' -Wait' : ''} -ErrorAction Stop; exit 0 } catch { exit 5 }`;
+  const r = await rodar('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], { timeout: 120000 });
+  return r.ok;
+}
+// Um script do PowerShell como administrador (a pergunta do Windows aparece), sem arquivo .ps1 nem .bat: vai
+// codificado na linha de comando. Devolve { aceitou, codigo }: 1223 é o código do Windows para "a pessoa recusou".
+const RECUSOU = 1223;
+async function powershellAdmin(script) {
+  const b64 = Buffer.from(script, 'utf16le').toString('base64');
+  const cmd = `try { $p = Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand','${b64}' -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop; exit $p.ExitCode } catch { exit ${RECUSOU} }`;
+  const r = await rodar('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], { timeout: 180000 });
+  return { aceitou: r.codigo !== RECUSOU, codigo: r.codigo };
+}
+const ARQ_HOSTS = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'drivers', 'etc', 'hosts');
+// tira do hosts o bloco que o proxy grava; sem permissão, roda este mesmo programa como administrador para isso
+function limparHostsAqui() {
+  const atual = fs.readFileSync(ARQ_HOSTS, 'utf8');
+  const novo = semBlocoDoProxy(atual);
+  if (novo === atual) return false;
+  fs.writeFileSync(ARQ_HOSTS, novo, 'utf8');
+  return true;
+}
+async function limparHosts() {
+  let mudou;
+  try { mudou = limparHostsAqui(); }
+  catch (e) {
+    if (!/EPERM|EACCES/.test(e.code || '')) throw new Falha('Não consegui ler o hosts: ' + e.message);
+    // só falta permissão quando há bloco para tirar (sem bloco, limparHostsAqui nem grava)
+    const aceitou = await comoAdmin(process.execPath, [path.join(AQUI, 'nos.mjs'), '--limpar-hosts']);
+    if (!aceitou) return 'não limpo: a pergunta de administrador foi recusada';
+    const depois = fs.readFileSync(ARQ_HOSTS, 'utf8');
+    if (semBlocoDoProxy(depois) !== depois) return 'não limpo: o hosts continua com o bloco do proxy';
+    mudou = true;
+  }
+  if (mudou) await rodar('ipconfig', ['/flushdns']);
+  return mudou ? 'bloco do proxy removido' : 'nada a limpar';
+}
+
 // a pasta do proxy: a das configurações; sem ela, a do proxy que está rodando
 async function pastaDoProxy(cfg, obrigatoria) {
   let pasta = cfg.pasta;
   if (!pasta) {
     const p = await processoNaPorta(new URL(cfg.painel).port);
-    const m = p && `${p.comando}\n${p.pai}`.match(/([A-Za-z]:\\[^"\r\n]*?)\\(?:proxy\.js|iniciar\.bat)\b/i);
+    const m = p && `${p.comando}\n${p.pai}`.match(/([A-Za-z]:\\[^"\r\n]*?)\\(?:proxy\.js|[^\\"\r\n]+\.(?:bat|cmd))\b/i);
     if (m) pasta = m[1];
   }
   if (!pasta || !fs.existsSync(path.join(pasta, 'proxy.js'))) {
@@ -126,8 +170,9 @@ const NOS = {
     if (antes) return { ligado: true, ja_estava: true, painel: cfg.painel };
     const pasta = await pastaDoProxy(cfg, true);
     if (p.modo === 'admin') {
-      // o iniciar.bat pede elevação (o Windows mostra a pergunta) e grava o hosts
-      spawn('cmd.exe', ['/c', 'start', '""', '/min', path.join(pasta, 'iniciar.bat')], { cwd: pasta, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      // como administrador o proxy consegue gravar o hosts; --limpar-hosts faz ele tirar o bloco quando encerra
+      const aceitou = await comoAdmin(process.execPath, ['proxy.js', '--limpar-hosts'], { pasta, esperarFim: false });
+      if (!aceitou) throw new Falha('A pergunta de administrador do Windows foi recusada: o proxy não foi ligado. Use o modo Normal para ligar sem administrador.');
     } else {
       spawn(process.execPath, ['proxy.js'], { cwd: pasta, detached: true, stdio: 'ignore', windowsHide: true }).unref();
     }
@@ -157,13 +202,19 @@ const NOS = {
     if (!ehProxy) throw new Falha(`Quem escuta na porta ${porta} não é o proxy.js (PID ${proc.pid}${proc.comando ? ': ' + proc.comando.slice(0, 120) : proc.nome ? ', ' + proc.nome : ''}). Não mexi.`);
     const pasta = await pastaDoProxy(cfg, false);
     const k = await rodar('taskkill', ['/PID', String(proc.pid), '/T', '/F']);
-    if (!k.ok) throw new Falha(/acesso negado|access is denied/i.test(k.err + k.out) ? 'O proxy roda como administrador e o BlueScreen não: feche a janela dele (Ctrl+C), que ele também limpa o hosts.' : `Não consegui encerrar o proxy (PID ${proc.pid}): ${k.err || k.out}`);
-    const v = { desligado: true, ja_estava: false, pid: proc.pid };
+    let elevado = false;
+    if (!k.ok) {
+      if (!/acesso negado|access is denied/i.test(k.err + k.out)) throw new Falha(`Não consegui encerrar o proxy (PID ${proc.pid}): ${k.err || k.out}`);
+      // o proxy roda como administrador: o encerramento também precisa ser (o Windows pergunta)
+      const aceitou = await comoAdmin('taskkill.exe', ['/PID', String(proc.pid), '/T', '/F']);
+      if (!aceitou) throw new Falha('O proxy roda como administrador e a pergunta do Windows foi recusada: ele continua ligado.');
+      if (await processoNaPorta(porta)) throw new Falha(`O proxy (PID ${proc.pid}) continua ligado depois do encerramento como administrador.`);
+      elevado = true;
+    }
+    const v = { desligado: true, ja_estava: false, pid: proc.pid, ...(elevado ? { como_administrador: true } : {}) };
     // encerrado à força, o proxy não tira o bloco dele do hosts: os nomes locais apontariam para 127.0.0.1 sem ninguém
-    if (p.hosts === 'limpar' && pasta) {
-      spawn('cmd.exe', ['/c', 'start', '""', '/min', path.join(pasta, 'limpar-hosts.bat')], { cwd: pasta, detached: true, stdio: 'ignore', windowsHide: true }).unref();
-      v.hosts = 'limpeza pedida (o Windows pergunta pelo administrador)';
-    } else if (!antes || antes.config.hosts) v.aviso = 'Se o proxy tinha gravado o hosts, os nomes locais continuam apontando para 127.0.0.1. Use "Limpar o hosts" neste nó ou o limpar-hosts.bat.';
+    if (p.hosts === 'limpar') v.hosts = await limparHosts();
+    else if (!antes || antes.config.hosts) v.aviso = 'Se o proxy tinha gravado o hosts, os nomes locais continuam apontando para 127.0.0.1. Escolha "Limpar o bloco do proxy" em Arquivo hosts.';
     return v;
   },
 
@@ -291,6 +342,46 @@ const NOS = {
     return { de: url, para: criada.local.replace(/\/$/, '') + u.pathname + u.search + u.hash, sentido: 'original → local', rota: criada.rota.id, rota_criada: true };
   },
 
+  async admin(p, entrada, cfg) {
+    const acao = p.acao || 'nada';
+    const pasta = cfg.dados || fs.mkdtempSync(path.join(process.env.TEMP || '.', 'proxy4auto-'));
+    fs.mkdirSync(pasta, { recursive: true });
+    const saida = path.join(pasta, 'admin-saida.json'), backup = path.join(pasta, 'dns-backup.json');
+    try { fs.rmSync(saida, { force: true }); } catch {}
+    const motivo = String(p.motivo || '').trim();
+    const v = { acao, ...(motivo ? { motivo } : {}) };
+    if (acao === 'hosts') {
+      const r = await limparHosts();
+      v.permitido = !/recusada/.test(r); v.resultado = r;
+      return { port: v.permitido && !/não limpo/.test(r) ? 'true' : 'false', value: v };
+    }
+    let script;
+    if (acao === 'nada') script = SCRIPTS.nada(saida);
+    else if (acao === 'dns_proxy') {
+      // sem o DNS do proxy no ar, apontar o Windows para 127.0.0.1 derruba a internet do PC inteiro
+      const est = await noAr(cfg);
+      if (!est) throw new Falha('O proxy não está no ar: com o DNS do Windows apontando para ele, nada resolveria. Ligue o proxy antes.');
+      if (est.servicos.dns !== 'ok') throw new Falha(`O DNS do proxy não está respondendo (${est.servicos.dns}). Ligue com o nó Ajustar o proxy (DNS local = sim) e confira a porta 53.`);
+      script = SCRIPTS.dns_proxy(saida, backup);
+    } else if (acao === 'dns_restaurar') script = SCRIPTS.dns_restaurar(saida, backup);
+    else if (acao === 'programa') {
+      const programa = String(p.programa || (typeof entrada === 'string' ? entrada : '') || '').trim();
+      if (!programa) throw new Falha('Informe o programa que vai rodar como administrador.');
+      const args = String(p.argumentos || '').match(/"[^"]*"|\S+/g)?.map((a) => a.replace(/^"|"$/g, '')) || [];
+      script = SCRIPTS.programa(saida, backup, programa, args, String(p.pasta || '').trim());
+      v.programa = programa;
+    } else throw new Falha('Escolha a ação.');
+    const r = await powershellAdmin(script);
+    v.permitido = r.aceitou;
+    if (!r.aceitou) { v.resultado = 'a pergunta de administrador foi recusada'; return { port: 'false', value: v }; }
+    let res = null; try { res = JSON.parse(fs.readFileSync(saida, 'utf8').replace(/^\uFEFF/, '')); } catch {}
+    try { fs.rmSync(saida, { force: true }); } catch {}
+    if (!res) throw new Falha(`A ação rodou como administrador mas não terminou bem (código ${r.codigo}).`);
+    Object.assign(v, res.adaptadores ? { adaptadores: [].concat(res.adaptadores) } : {}, res.codigo != null ? { codigo: res.codigo } : {});
+    v.resultado = acao === 'nada' ? 'permissão concedida' : acao === 'programa' ? (res.ok ? 'o programa terminou sem erro' : `o programa terminou com o código ${res.codigo}`) : acao === 'dns_proxy' ? 'o Windows agora resolve nomes pelo proxy' : 'DNS do Windows restaurado';
+    return { port: res.ok ? 'true' : 'false', value: v };
+  },
+
   async ajustar(p, _e, cfg) {
     const chave = String(p.ajuste || '');
     const bool = ['dns', 'hosts', 'reescrever_links', 'log_detalhado'].includes(chave);
@@ -310,6 +401,10 @@ const NOS = {
 };
 
 // ---------- entrada ----------
+// chamado como administrador pelo próprio plugin (limparHosts): só tira o bloco do proxy do hosts e sai
+if (process.argv.includes('--limpar-hosts')) {
+  try { limparHostsAqui(); process.exit(0); } catch (e) { process.stderr.write(e.message + '\n'); process.exit(1); }
+}
 let texto = '';
 process.stdin.setEncoding('utf8');
 for await (const c of process.stdin) texto += c;
@@ -318,6 +413,7 @@ try {
   const fn = Object.hasOwn(NOS, pedido.node) ? NOS[pedido.node] : null;
   if (!fn) throw new Falha('Nó desconhecido: ' + pedido.node);
   const cfg = configuracoes(pedido.data, AQUI);
+  cfg.dados = pedido.data || '';
   if (process.env.PROXY4AUTO_PAINEL) cfg.painel = process.env.PROXY4AUTO_PAINEL; // testes
   const v = await fn(pedido.params || {}, pedido.input ?? null, cfg);
   process.stdout.write(JSON.stringify(v ?? null));

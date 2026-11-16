@@ -4,11 +4,11 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 0.1.0 |
+| **Versão** | 0.2.0 |
 | **Licença** | MIT |
 | **Categoria** | Desenvolvimento |
 | **Precisa de** | BlueScreen 2.1.33 ou mais novo · Node.js 18+ |
-| **Automator** | 12 nós (categoria Proxy) |
+| **Automator** | 13 nós (categoria Proxy) |
 | **Código** | [plugins/proxy4auto](https://github.com/martindevbr/BlueScreen-Plugins/tree/main/plugins/proxy4auto) |
 <!-- ficha:fim -->
 
@@ -25,8 +25,9 @@ Abra o **Automator** e procure a categoria **Proxy** na paleta. Os nós falam co
 | Nó | Para quê |
 |---|---|
 | **Proxy no ar?** | Sai por sim ou por não. Com "está tudo de pé", também confere portas que não abriram, DNS e linhas recusadas do `apontamentos.txt`. |
-| **Ligar o proxy** | Sobe o `proxy.js` e espera o painel responder. Em modo administrador, usa o `iniciar.bat` (o Windows pergunta) e grava o hosts. |
-| **Desligar o proxy** | Encerra o proxy, depois de conferir que quem escuta na porta do painel é ele. Pode pedir a limpeza do hosts. |
+| **Ligar o proxy** | Sobe o `proxy.js` e espera o painel responder. Em modo administrador, o próprio BlueScreen pede a permissão do Windows (sem console nem `.bat`) e o proxy grava o hosts. |
+| **Desligar o proxy** | Encerra o proxy, depois de conferir que quem escuta na porta do painel é ele. Se ele roda como administrador, pede a permissão do Windows para encerrar. Pode limpar o bloco do proxy no hosts. |
+| **Permissão de administrador** | Ao executar, pede a permissão de administrador do Windows. Aceita, segue por sim e faz a ação escolhida: só confirmar, limpar o hosts, pôr o DNS do Windows no proxy (o modo sem hosts, sem o `dns-adaptador.ps1`), restaurar o DNS ou rodar um programa. Recusada, segue por não. |
 | **Listar rotas** | Rotas com endereço local, destino e tráfego. Filtra só HTTP, só TCP, as que já deram erro ou as linhas recusadas. |
 | **Apontar um nome** | Cria ou atualiza uma rota. Sem nome, sugere um a partir do destino (`https://api.cliente.com.br` vira `localhost-api-cliente`). Não duplica: com o mesmo destino, responde "Já estava assim". |
 | **Remover rota** | Tira a rota. Os comentários do `apontamentos.txt` ficam. |
@@ -44,6 +45,7 @@ Nos campos de rota, a lista mostra as rotas que o proxy tem agora. Também dá p
 - **Vigia do disfarce:** Agenda (de hora em hora) → Conferir o disfarce → no "não", Notificação com `{{input.vazamentos}}`.
 - **Ambiente de demonstração:** Iniciar manualmente → Ligar o proxy → Apontar um nome (o destino do cliente) → Conferir o disfarce → Notificação com o `{{input.local}}`.
 - **Destino caiu:** Agenda → Testar destinos → no "não", e-mail com `{{input.resultados}}`.
+- **Modo sem hosts:** Ligar o proxy → Ajustar o proxy (DNS local = sim) → Permissão de administrador (DNS do Windows pelo proxy). Para voltar: Permissão de administrador (Restaurar o DNS do Windows).
 - **Trocar de ambiente:** Apontar um nome com o mesmo nome e outro destino e "Trocar o destino": os apps continuam no mesmo `http://localhost-api`.
 
 ## Configurações
@@ -57,8 +59,8 @@ Aba Plugins › engrenagem do Proxy4Auto:
 
 ## Limites conhecidos
 
-- Proxy rodando como administrador e BlueScreen sem: o **Desligar o proxy** não consegue encerrar e pede para fechar a janela dele, que também limpa o hosts.
-- O proxy encerrado de fora não tira o bloco dele do hosts. Por isso o **Desligar** tem a opção de limpar, com a pergunta de administrador do Windows.
+- O proxy encerrado de fora não tira o bloco dele do hosts. Por isso o **Desligar** tem a opção de limpar: o plugin tira o bloco ele mesmo, pedindo a permissão do Windows quando precisa.
+- Ligar como administrador e desligar um proxy de administrador dependem de você aceitar a pergunta do Windows: num fluxo sem ninguém no PC, use o modo Normal.
 - O **Conferir o disfarce** lê até 2 MB por página e não executa JavaScript: um link montado no navegador escapa.
 - O **Tráfego recente** vê o que o painel guarda, que são as últimas 400 linhas do log.
 
@@ -75,6 +77,11 @@ Os testes usam um painel falso e não tocam no proxy, no hosts nem no DNS deste 
 Feito por Martin Hartfelder. Licença MIT (veja o campo `license` do `plugin.json`).
 
 ## Histórico de versões
+
+### 0.2.0
+
+- Nó **Permissão de administrador**: pede a permissão do Windows ao executar e segue por sim ou por não, com as ações de hosts, DNS do Windows pelo proxy, restaurar o DNS e rodar um programa.
+- Sem `.bat`: ligar como administrador, encerrar um proxy de administrador e limpar o hosts são feitos pelo próprio plugin, com a pergunta de permissão do Windows.
 
 ### 0.1.0
 

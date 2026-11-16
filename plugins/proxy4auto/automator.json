@@ -1,196 +1,1113 @@
 {
   "nodes": [
     {
-      "type": "status", "name": "Proxy no ar?", "category": "Proxy",
+      "type": "status",
+      "name": "Proxy no ar?",
+      "category": "Proxy",
       "desc": "Segue por sim quando o localhost-proxy está respondendo e por não quando está desligado. Diz também o que não subiu.",
-      "keywords": ["status", "monitorar", "saúde", "rodando", "condição"],
-      "takes": "any", "gives": "object",
-      "inputs": ["in"], "outputs": ["true", "false"],
+      "keywords": [
+        "status",
+        "monitorar",
+        "saúde",
+        "rodando",
+        "condição"
+      ],
+      "takes": "any",
+      "gives": "object",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "true",
+        "false"
+      ],
       "expects": "Qualquer dado (não é usado).",
       "returns": "Se está no ar, a porta HTTP, DNS, hosts, quantas rotas, portas que não abriram, linhas recusadas do apontamentos.txt e a lista de problemas.",
-      "sample": { "no_ar": true, "painel": "http://127.0.0.1:7070", "porta_http": 80, "dns": "ok", "hosts": "ok", "reescrever_links": true, "rotas_http": 2, "rotas_tcp": 1, "linhas_invalidas": [], "portas_sem_escutar": [], "problemas": [] },
-      "params": { "exigir": "no_ar" },
+      "sample": {
+        "no_ar": true,
+        "painel": "http://127.0.0.1:7070",
+        "porta_http": 80,
+        "dns": "ok",
+        "hosts": "ok",
+        "reescrever_links": true,
+        "rotas_http": 2,
+        "rotas_tcp": 1,
+        "linhas_invalidas": [],
+        "portas_sem_escutar": [],
+        "problemas": []
+      },
+      "params": {
+        "exigir": "no_ar"
+      },
       "fields": [
-        { "name": "exigir", "label": "Sim quando", "kind": "select", "options": [{ "value": "no_ar", "label": "O proxy responde" }, { "value": "inteiro", "label": "Responde e está tudo de pé (portas, DNS, rotas válidas)" }] }
+        {
+          "name": "exigir",
+          "label": "Sim quando",
+          "kind": "select",
+          "options": [
+            {
+              "value": "no_ar",
+              "label": "O proxy responde"
+            },
+            {
+              "value": "inteiro",
+              "label": "Responde e está tudo de pé (portas, DNS, rotas válidas)"
+            }
+          ]
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 30000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 30000
+      }
     },
     {
-      "type": "ligar", "name": "Ligar o proxy", "category": "Proxy",
+      "type": "ligar",
+      "name": "Ligar o proxy",
+      "category": "Proxy",
       "desc": "Liga o localhost-proxy e espera o painel responder. Se ele já estiver no ar, só confirma.",
-      "keywords": ["iniciar", "start", "subir", "abrir"],
-      "takes": "any", "gives": "object",
+      "keywords": [
+        "iniciar",
+        "start",
+        "subir",
+        "abrir"
+      ],
+      "takes": "any",
+      "gives": "object",
       "expects": "Qualquer dado (não é usado).",
       "returns": "Se ligou ou já estava ligado, a pasta, o modo, quantas rotas e avisos (portas ocupadas, hosts sem administrador).",
-      "sample": { "ligado": true, "ja_estava": false, "painel": "http://127.0.0.1:7070", "pasta": "C:\\proxy-server", "modo": "normal", "rotas": 3, "avisos": [] },
-      "params": { "modo": "normal", "esperar_s": 30 },
+      "sample": {
+        "ligado": true,
+        "ja_estava": false,
+        "painel": "http://127.0.0.1:7070",
+        "pasta": "C:\\proxy-server",
+        "modo": "normal",
+        "rotas": 3,
+        "avisos": []
+      },
+      "params": {
+        "modo": "normal",
+        "esperar_s": 30
+      },
       "fields": [
-        { "name": "modo", "label": "Como", "kind": "select", "options": [{ "value": "normal", "label": "Normal (sem mexer no hosts se não tiver permissão)" }, { "value": "admin", "label": "Como administrador (o Windows pergunta; grava o hosts)" }], "help": "Sem administrador os nomes locais resolvem pelo DNS do proxy. Como administrador ele também escreve no hosts do Windows." },
-        { "name": "esperar_s", "label": "Esperar até (segundos)", "kind": "number", "min": 5, "max": 120 }
+        {
+          "name": "modo",
+          "label": "Como",
+          "kind": "select",
+          "options": [
+            {
+              "value": "normal",
+              "label": "Normal (sem mexer no hosts se não tiver permissão)"
+            },
+            {
+              "value": "admin",
+              "label": "Como administrador (o Windows pergunta; grava o hosts)"
+            }
+          ],
+          "help": "Sem administrador os nomes locais resolvem pelo DNS do proxy. Como administrador ele também escreve no hosts do Windows: o próprio BlueScreen pede a permissão, sem janela de console."
+        },
+        {
+          "name": "esperar_s",
+          "label": "Esperar até (segundos)",
+          "kind": "number",
+          "min": 5,
+          "max": 120
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 140000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 140000
+      }
     },
     {
-      "type": "desligar", "name": "Desligar o proxy", "category": "Proxy",
-      "desc": "Encerra o localhost-proxy que está escutando no painel. Confere antes que o processo é mesmo o proxy.js.",
-      "keywords": ["parar", "stop", "encerrar", "fechar"],
-      "takes": "any", "gives": "object",
+      "type": "desligar",
+      "name": "Desligar o proxy",
+      "category": "Proxy",
+      "desc": "Encerra o localhost-proxy que está escutando no painel. Confere antes que o processo é mesmo o proxy.js; se ele roda como administrador, o Windows pede a permissão para encerrar.",
+      "keywords": [
+        "parar",
+        "stop",
+        "encerrar",
+        "fechar"
+      ],
+      "takes": "any",
+      "gives": "object",
       "expects": "Qualquer dado (não é usado).",
-      "returns": "Se desligou ou já estava desligado, o PID encerrado e o que foi feito com o hosts.",
-      "sample": { "desligado": true, "ja_estava": false, "pid": 12776, "hosts": "limpeza pedida (o Windows pergunta pelo administrador)" },
-      "params": { "hosts": "manter" },
+      "returns": "Se desligou ou já estava desligado, o PID encerrado, se precisou de administrador e o que foi feito com o hosts.",
+      "sample": {
+        "desligado": true,
+        "ja_estava": false,
+        "pid": 12776,
+        "como_administrador": true,
+        "hosts": "bloco do proxy removido"
+      },
+      "params": {
+        "hosts": "manter"
+      },
       "fields": [
-        { "name": "hosts", "label": "Arquivo hosts", "kind": "select", "options": [{ "value": "manter", "label": "Deixar como está" }, { "value": "limpar", "label": "Limpar o bloco do proxy (o Windows pergunta)" }], "help": "Encerrado de fora, o proxy não tira o bloco dele do hosts, e os nomes locais ficam apontando para 127.0.0.1 sem ninguém atender." }
+        {
+          "name": "hosts",
+          "label": "Arquivo hosts",
+          "kind": "select",
+          "options": [
+            {
+              "value": "manter",
+              "label": "Deixar como está"
+            },
+            {
+              "value": "limpar",
+              "label": "Limpar o bloco do proxy (o Windows pergunta)"
+            }
+          ],
+          "help": "Encerrado de fora, o proxy não tira o bloco dele do hosts, e os nomes locais ficam apontando para 127.0.0.1 sem ninguém atender."
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 60000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 60000
+      }
     },
     {
-      "type": "rotas", "name": "Listar rotas", "category": "Proxy",
+      "type": "admin",
+      "name": "Permissão de administrador",
+      "category": "Proxy",
+      "desc": "Ao executar, pede a permissão de administrador do Windows. Aceita, faz a ação escolhida e segue por sim; recusada, segue por não.",
+      "keywords": [
+        "administrador",
+        "elevar",
+        "uac",
+        "permissão",
+        "dns",
+        "hosts",
+        "runas"
+      ],
+      "takes": "any",
+      "gives": "object",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "true",
+        "false"
+      ],
+      "expects": "Qualquer dado. Em Rodar um programa, se o campo Programa ficar vazio, usa o texto que chega.",
+      "returns": "A ação, se a permissão foi dada, o resultado e, nas ações de DNS, cada adaptador com o DNS de antes ou o de agora.",
+      "sample": {
+        "acao": "dns_proxy",
+        "permitido": true,
+        "resultado": "o Windows agora resolve nomes pelo proxy",
+        "adaptadores": [
+          {
+            "adaptador": "Ethernet",
+            "antes": "192.168.0.1"
+          }
+        ]
+      },
+      "params": {
+        "acao": "nada",
+        "motivo": "",
+        "programa": "",
+        "argumentos": "",
+        "pasta": ""
+      },
+      "fields": [
+        {
+          "name": "acao",
+          "label": "Depois de permitido",
+          "kind": "select",
+          "options": [
+            {
+              "value": "nada",
+              "label": "Só confirmar (seguir por sim)"
+            },
+            {
+              "value": "hosts",
+              "label": "Limpar o bloco do proxy no hosts"
+            },
+            {
+              "value": "dns_proxy",
+              "label": "DNS do Windows pelo proxy (sem mexer no hosts)"
+            },
+            {
+              "value": "dns_restaurar",
+              "label": "Restaurar o DNS do Windows"
+            },
+            {
+              "value": "programa",
+              "label": "Rodar um programa como administrador"
+            }
+          ],
+          "help": "DNS pelo proxy: os adaptadores ligados passam a usar 127.0.0.1, guardando o DNS de antes para Restaurar. Só roda com o DNS do proxy no ar, senão a internet do PC para."
+        },
+        {
+          "name": "motivo",
+          "label": "Motivo",
+          "kind": "text",
+          "placeholder": "Opcional: aparece no resultado e no histórico"
+        },
+        {
+          "name": "programa",
+          "label": "Programa",
+          "kind": "text",
+          "pick": "program",
+          "placeholder": "Vazio: o texto que chega",
+          "show": {
+            "acao": [
+              "programa"
+            ]
+          }
+        },
+        {
+          "name": "argumentos",
+          "label": "Argumentos",
+          "kind": "text",
+          "placeholder": "Entre aspas o que tiver espaço",
+          "show": {
+            "acao": [
+              "programa"
+            ]
+          }
+        },
+        {
+          "name": "pasta",
+          "label": "Rodar na pasta",
+          "kind": "text",
+          "pick": "folder",
+          "show": {
+            "acao": [
+              "programa"
+            ]
+          }
+        }
+      ],
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 200000
+      }
+    },
+    {
+      "type": "rotas",
+      "name": "Listar rotas",
+      "category": "Proxy",
       "desc": "As rotas do proxy, com o endereço local, o destino e quantas requisições cada uma recebeu.",
-      "keywords": ["apontamentos", "listar", "mapa"],
-      "takes": "any", "gives": "list",
+      "keywords": [
+        "apontamentos",
+        "listar",
+        "mapa"
+      ],
+      "takes": "any",
+      "gives": "list",
       "expects": "Qualquer dado (não é usado).",
       "returns": "Lista de rotas: id, tipo, nome, porta, local, destino e, se já houve tráfego, requisições, erros, último status e tempo.",
-      "sample": [{ "id": "localhost-api:80", "tipo": "http", "nome": "localhost-api", "porta": 80, "local": "http://localhost-api", "destino": "https://api.exemplo.com", "requisicoes": 42, "erros": 1, "ultimo_status": 200, "ultimo_ms": 180 }],
-      "params": { "filtro": "todas" },
-      "fields": [
-        { "name": "filtro", "label": "Quais", "kind": "select", "options": [{ "value": "todas", "label": "Todas" }, { "value": "http", "label": "Só HTTP" }, { "value": "tcp", "label": "Só TCP" }, { "value": "erros", "label": "As que já deram erro" }, { "value": "invalidas", "label": "Linhas que o proxy recusou" }] }
+      "sample": [
+        {
+          "id": "localhost-api:80",
+          "tipo": "http",
+          "nome": "localhost-api",
+          "porta": 80,
+          "local": "http://localhost-api",
+          "destino": "https://api.exemplo.com",
+          "requisicoes": 42,
+          "erros": 1,
+          "ultimo_status": 200,
+          "ultimo_ms": 180
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 30000 }
+      "params": {
+        "filtro": "todas"
+      },
+      "fields": [
+        {
+          "name": "filtro",
+          "label": "Quais",
+          "kind": "select",
+          "options": [
+            {
+              "value": "todas",
+              "label": "Todas"
+            },
+            {
+              "value": "http",
+              "label": "Só HTTP"
+            },
+            {
+              "value": "tcp",
+              "label": "Só TCP"
+            },
+            {
+              "value": "erros",
+              "label": "As que já deram erro"
+            },
+            {
+              "value": "invalidas",
+              "label": "Linhas que o proxy recusou"
+            }
+          ]
+        }
+      ],
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 30000
+      }
     },
     {
-      "type": "apontar", "name": "Apontar um nome", "category": "Proxy",
+      "type": "apontar",
+      "name": "Apontar um nome",
+      "category": "Proxy",
       "desc": "Cria ou atualiza uma rota: um nome local (http://localhost-api) que leva a um serviço da internet, ou uma porta TCP local que leva a um banco remoto.",
-      "keywords": ["criar rota", "adicionar", "mapear", "apontamento", "tcp", "banco"],
-      "takes": "any", "gives": "object",
+      "keywords": [
+        "criar rota",
+        "adicionar",
+        "mapear",
+        "apontamento",
+        "tcp",
+        "banco"
+      ],
+      "takes": "any",
+      "gives": "object",
       "expects": "O destino. Se o campo Destino ficar vazio, usa o texto que chega (ou o campo url de um objeto).",
       "returns": "Se criou ou mudou, a rota, o endereço local e, com Testar, se o destino respondeu.",
-      "sample": { "criada": true, "mudou": true, "rota": { "id": "localhost-api-meucliente:80", "tipo": "http", "nome": "localhost-api-meucliente", "porta": 80, "local": "http://localhost-api-meucliente", "destino": "https://api.meucliente.com.br" }, "local": "http://localhost-api-meucliente", "teste": { "ok": true, "status": 200, "ms": 210 } },
-      "params": { "tipo": "http", "destino": "", "nome": "", "porta": "", "se_existir": "falhar", "testar": "sim" },
+      "sample": {
+        "criada": true,
+        "mudou": true,
+        "rota": {
+          "id": "localhost-api-meucliente:80",
+          "tipo": "http",
+          "nome": "localhost-api-meucliente",
+          "porta": 80,
+          "local": "http://localhost-api-meucliente",
+          "destino": "https://api.meucliente.com.br"
+        },
+        "local": "http://localhost-api-meucliente",
+        "teste": {
+          "ok": true,
+          "status": 200,
+          "ms": 210
+        }
+      },
+      "params": {
+        "tipo": "http",
+        "destino": "",
+        "nome": "",
+        "porta": "",
+        "se_existir": "falhar",
+        "testar": "sim"
+      },
       "fields": [
-        { "name": "tipo", "label": "Tipo", "kind": "select", "options": [{ "value": "http", "label": "HTTP (site ou API, por nome)" }, { "value": "tcp", "label": "TCP (banco, Redis… por porta)" }] },
-        { "name": "destino", "label": "Destino", "kind": "text", "placeholder": "https://api.exemplo.com", "help": "No TCP: host:porta, como 203.0.113.10:5432." },
-        { "name": "nome", "label": "Nome local", "kind": "text", "placeholder": "Vazio: um nome tirado do destino", "show": { "tipo": ["http"] }, "help": "Vazio, https://api.meucliente.com.br vira localhost-api-meucliente." },
-        { "name": "porta", "label": "Porta local", "kind": "text", "placeholder": "Vazio: a porta_http do proxy", "help": "No HTTP, outra porta faz o proxy escutar nela também (http://nome:porta). No TCP é obrigatória." },
-        { "name": "se_existir", "label": "Se já existir com outro destino", "kind": "select", "options": [{ "value": "falhar", "label": "Parar com erro" }, { "value": "trocar", "label": "Trocar o destino" }] },
-        { "name": "testar", "label": "Testar o destino depois", "kind": "select", "options": [{ "value": "sim", "label": "Sim" }, { "value": "nao", "label": "Não" }] }
+        {
+          "name": "tipo",
+          "label": "Tipo",
+          "kind": "select",
+          "options": [
+            {
+              "value": "http",
+              "label": "HTTP (site ou API, por nome)"
+            },
+            {
+              "value": "tcp",
+              "label": "TCP (banco, Redis… por porta)"
+            }
+          ]
+        },
+        {
+          "name": "destino",
+          "label": "Destino",
+          "kind": "text",
+          "placeholder": "https://api.exemplo.com",
+          "help": "No TCP: host:porta, como 203.0.113.10:5432."
+        },
+        {
+          "name": "nome",
+          "label": "Nome local",
+          "kind": "text",
+          "placeholder": "Vazio: um nome tirado do destino",
+          "show": {
+            "tipo": [
+              "http"
+            ]
+          },
+          "help": "Vazio, https://api.meucliente.com.br vira localhost-api-meucliente."
+        },
+        {
+          "name": "porta",
+          "label": "Porta local",
+          "kind": "text",
+          "placeholder": "Vazio: a porta_http do proxy",
+          "help": "No HTTP, outra porta faz o proxy escutar nela também (http://nome:porta). No TCP é obrigatória."
+        },
+        {
+          "name": "se_existir",
+          "label": "Se já existir com outro destino",
+          "kind": "select",
+          "options": [
+            {
+              "value": "falhar",
+              "label": "Parar com erro"
+            },
+            {
+              "value": "trocar",
+              "label": "Trocar o destino"
+            }
+          ]
+        },
+        {
+          "name": "testar",
+          "label": "Testar o destino depois",
+          "kind": "select",
+          "options": [
+            {
+              "value": "sim",
+              "label": "Sim"
+            },
+            {
+              "value": "nao",
+              "label": "Não"
+            }
+          ]
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 60000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 60000
+      }
     },
     {
-      "type": "remover", "name": "Remover rota", "category": "Proxy",
+      "type": "remover",
+      "name": "Remover rota",
+      "category": "Proxy",
       "desc": "Tira uma rota do proxy (a linha sai do apontamentos.txt, os comentários ficam).",
-      "keywords": ["apagar", "excluir", "rota"],
-      "takes": "any", "gives": "object",
+      "keywords": [
+        "apagar",
+        "excluir",
+        "rota"
+      ],
+      "takes": "any",
+      "gives": "object",
       "expects": "A rota. Se o campo ficar vazio, usa o que chega (texto ou a saída de Apontar um nome).",
       "returns": "Se removeu e qual rota era.",
-      "sample": { "removida": true, "rota": { "id": "localhost-api:80", "tipo": "http", "nome": "localhost-api", "porta": 80, "local": "http://localhost-api", "destino": "https://api.exemplo.com" } },
-      "params": { "rota": "", "se_nao_existir": "falhar" },
+      "sample": {
+        "removida": true,
+        "rota": {
+          "id": "localhost-api:80",
+          "tipo": "http",
+          "nome": "localhost-api",
+          "porta": 80,
+          "local": "http://localhost-api",
+          "destino": "https://api.exemplo.com"
+        }
+      },
+      "params": {
+        "rota": "",
+        "se_nao_existir": "falhar"
+      },
       "fields": [
-        { "name": "rota", "label": "Rota", "kind": "text", "choicesFrom": "proxy4auto/rotas", "placeholder": "Vazio: o que chega do nó anterior", "help": "O nome local, nome:porta, a URL local ou tcp 5433." },
-        { "name": "se_nao_existir", "label": "Se não existir", "kind": "select", "options": [{ "value": "falhar", "label": "Parar com erro" }, { "value": "ignorar", "label": "Seguir sem erro" }] }
+        {
+          "name": "rota",
+          "label": "Rota",
+          "kind": "text",
+          "choicesFrom": "proxy4auto/rotas",
+          "placeholder": "Vazio: o que chega do nó anterior",
+          "help": "O nome local, nome:porta, a URL local ou tcp 5433."
+        },
+        {
+          "name": "se_nao_existir",
+          "label": "Se não existir",
+          "kind": "select",
+          "options": [
+            {
+              "value": "falhar",
+              "label": "Parar com erro"
+            },
+            {
+              "value": "ignorar",
+              "label": "Seguir sem erro"
+            }
+          ]
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 30000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 30000
+      }
     },
     {
-      "type": "testar", "name": "Testar destinos", "category": "Proxy",
+      "type": "testar",
+      "name": "Testar destinos",
+      "category": "Proxy",
       "desc": "Confere se o destino de uma rota (ou de todas) responde. Segue por sim quando todos respondem.",
-      "keywords": ["ping", "saúde", "monitorar", "conferir", "health check"],
-      "takes": "any", "gives": "object",
-      "inputs": ["in"], "outputs": ["true", "false"],
+      "keywords": [
+        "ping",
+        "saúde",
+        "monitorar",
+        "conferir",
+        "health check"
+      ],
+      "takes": "any",
+      "gives": "object",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "true",
+        "false"
+      ],
       "expects": "Uma rota, ou nada para testar todas.",
       "returns": "Quantas foram testadas e quantas falharam, e cada uma com ok, status, tempo e o erro.",
-      "sample": { "todas_ok": false, "testadas": 2, "falharam": 1, "resultados": [{ "id": "localhost-api:80", "local": "http://localhost-api", "destino": "https://api.exemplo.com", "ok": true, "status": 200, "ms": 180 }, { "id": "tcp:5433", "local": "127.0.0.1:5433", "destino": "203.0.113.10:5432", "ok": false, "status": null, "ms": 6001, "erro": "tempo esgotado" }] },
-      "params": { "rota": "" },
+      "sample": {
+        "todas_ok": false,
+        "testadas": 2,
+        "falharam": 1,
+        "resultados": [
+          {
+            "id": "localhost-api:80",
+            "local": "http://localhost-api",
+            "destino": "https://api.exemplo.com",
+            "ok": true,
+            "status": 200,
+            "ms": 180
+          },
+          {
+            "id": "tcp:5433",
+            "local": "127.0.0.1:5433",
+            "destino": "203.0.113.10:5432",
+            "ok": false,
+            "status": null,
+            "ms": 6001,
+            "erro": "tempo esgotado"
+          }
+        ]
+      },
+      "params": {
+        "rota": ""
+      },
       "fields": [
-        { "name": "rota", "label": "Rota", "kind": "text", "choicesFrom": "proxy4auto/rotas", "placeholder": "Vazio: todas" }
+        {
+          "name": "rota",
+          "label": "Rota",
+          "kind": "text",
+          "choicesFrom": "proxy4auto/rotas",
+          "placeholder": "Vazio: todas"
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 120000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 120000
+      }
     },
     {
-      "type": "pedir", "name": "Requisição pelo proxy", "category": "Proxy",
+      "type": "pedir",
+      "name": "Requisição pelo proxy",
+      "category": "Proxy",
       "desc": "Faz uma requisição HTTP pelo nome local, do jeito que um app faria (127.0.0.1 com o Host do nome). Aceita a URL do site original: ela vira a local.",
-      "keywords": ["http", "api", "get", "post", "chamar", "request"],
-      "takes": "any", "gives": "object",
+      "keywords": [
+        "http",
+        "api",
+        "get",
+        "post",
+        "chamar",
+        "request"
+      ],
+      "takes": "any",
+      "gives": "object",
       "expects": "A rota ou uma URL (local ou do site original). Se o campo ficar vazio, usa o que chega.",
       "returns": "Status, tempo, a URL local usada, os cabeçalhos e o corpo (JSON já lido, quando for JSON).",
-      "sample": { "ok": true, "status": 200, "ms": 143, "url": "http://localhost-api/v1/clientes", "rota": "localhost-api:80", "headers": { "content-type": "application/json" }, "corpo": { "clientes": [] } },
-      "params": { "rota": "", "metodo": "GET", "caminho": "/", "cabecalhos": {}, "corpo": "", "tempo_s": 30, "falhar_status": "nao" },
+      "sample": {
+        "ok": true,
+        "status": 200,
+        "ms": 143,
+        "url": "http://localhost-api/v1/clientes",
+        "rota": "localhost-api:80",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "corpo": {
+          "clientes": []
+        }
+      },
+      "params": {
+        "rota": "",
+        "metodo": "GET",
+        "caminho": "/",
+        "cabecalhos": {},
+        "corpo": "",
+        "tempo_s": 30,
+        "falhar_status": "nao"
+      },
       "fields": [
-        { "name": "rota", "label": "Rota ou URL", "kind": "text", "choicesFrom": "proxy4auto/rotas", "placeholder": "Vazio: o que chega do nó anterior" },
-        { "name": "metodo", "label": "Método", "kind": "select", "options": [{ "value": "GET", "label": "GET" }, { "value": "POST", "label": "POST" }, { "value": "PUT", "label": "PUT" }, { "value": "PATCH", "label": "PATCH" }, { "value": "DELETE", "label": "DELETE" }, { "value": "HEAD", "label": "HEAD" }] },
-        { "name": "caminho", "label": "Caminho", "kind": "text", "placeholder": "/v1/clientes?pagina=1" },
-        { "name": "cabecalhos", "label": "Cabeçalhos", "kind": "json", "help": "Um por linha: o nome e o valor. Para um token, use {{vault:nome}}: o valor não fica escrito no fluxo." },
-        { "name": "corpo", "label": "Corpo", "kind": "area", "placeholder": "Vazio: sem corpo. JSON é enviado como application/json.", "show": { "metodo": ["POST", "PUT", "PATCH", "DELETE"] } },
-        { "name": "tempo_s", "label": "Esperar até (segundos)", "kind": "number", "min": 1, "max": 300 },
-        { "name": "falhar_status", "label": "Status 400 ou mais", "kind": "select", "options": [{ "value": "nao", "label": "Seguir e devolver o status" }, { "value": "sim", "label": "Parar com erro" }] }
+        {
+          "name": "rota",
+          "label": "Rota ou URL",
+          "kind": "text",
+          "choicesFrom": "proxy4auto/rotas",
+          "placeholder": "Vazio: o que chega do nó anterior"
+        },
+        {
+          "name": "metodo",
+          "label": "Método",
+          "kind": "select",
+          "options": [
+            {
+              "value": "GET",
+              "label": "GET"
+            },
+            {
+              "value": "POST",
+              "label": "POST"
+            },
+            {
+              "value": "PUT",
+              "label": "PUT"
+            },
+            {
+              "value": "PATCH",
+              "label": "PATCH"
+            },
+            {
+              "value": "DELETE",
+              "label": "DELETE"
+            },
+            {
+              "value": "HEAD",
+              "label": "HEAD"
+            }
+          ]
+        },
+        {
+          "name": "caminho",
+          "label": "Caminho",
+          "kind": "text",
+          "placeholder": "/v1/clientes?pagina=1"
+        },
+        {
+          "name": "cabecalhos",
+          "label": "Cabeçalhos",
+          "kind": "json",
+          "help": "Um por linha: o nome e o valor. Para um token, use {{vault:nome}}: o valor não fica escrito no fluxo."
+        },
+        {
+          "name": "corpo",
+          "label": "Corpo",
+          "kind": "area",
+          "placeholder": "Vazio: sem corpo. JSON é enviado como application/json.",
+          "show": {
+            "metodo": [
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ]
+          }
+        },
+        {
+          "name": "tempo_s",
+          "label": "Esperar até (segundos)",
+          "kind": "number",
+          "min": 1,
+          "max": 300
+        },
+        {
+          "name": "falhar_status",
+          "label": "Status 400 ou mais",
+          "kind": "select",
+          "options": [
+            {
+              "value": "nao",
+              "label": "Seguir e devolver o status"
+            },
+            {
+              "value": "sim",
+              "label": "Parar com erro"
+            }
+          ]
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 320000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 320000
+      }
     },
     {
-      "type": "disfarce", "name": "Conferir o disfarce", "category": "Proxy",
+      "type": "disfarce",
+      "name": "Conferir o disfarce",
+      "category": "Proxy",
       "desc": "Abre páginas pela rota e procura o que entrega o destino: o domínio original em cabeçalhos e links, rastros da Vercel e da Cloudflare, cookie preso ao domínio de lá. Segue por sim quando está limpo.",
-      "keywords": ["vazamento", "rastro", "vercel", "cloudflare", "auditoria", "mascarar", "reescrita"],
-      "takes": "any", "gives": "object",
-      "inputs": ["in"], "outputs": ["true", "false"],
+      "keywords": [
+        "vazamento",
+        "rastro",
+        "vercel",
+        "cloudflare",
+        "auditoria",
+        "mascarar",
+        "reescrita"
+      ],
+      "takes": "any",
+      "gives": "object",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "true",
+        "false"
+      ],
       "expects": "A rota. Se o campo ficar vazio, usa o que chega.",
       "returns": "Se está limpo, os vazamentos (onde, o quê e um trecho) e os avisos do que o proxy deixa de propósito.",
-      "sample": { "limpo": false, "rota": "localhost-site:80", "local": "http://localhost-site", "paginas": 2, "vazamentos": [{ "caminho": "/", "onde": "corpo", "o_que": "link para o destino (3×)", "trecho": "<a href=\"https://www.exemplo.com/contato\">" }], "avisos": [], "reescrever_links": true },
-      "params": { "rota": "", "caminhos": ["/"] },
+      "sample": {
+        "limpo": false,
+        "rota": "localhost-site:80",
+        "local": "http://localhost-site",
+        "paginas": 2,
+        "vazamentos": [
+          {
+            "caminho": "/",
+            "onde": "corpo",
+            "o_que": "link para o destino (3×)",
+            "trecho": "<a href=\"https://www.exemplo.com/contato\">"
+          }
+        ],
+        "avisos": [],
+        "reescrever_links": true
+      },
+      "params": {
+        "rota": "",
+        "caminhos": [
+          "/"
+        ]
+      },
       "fields": [
-        { "name": "rota", "label": "Rota", "kind": "text", "choicesFrom": "proxy4auto/rotas?tipo=http", "placeholder": "Vazio: o que chega do nó anterior" },
-        { "name": "caminhos", "label": "Páginas", "kind": "lines", "help": "Um caminho por linha (até 20), como / e /api/status." }
+        {
+          "name": "rota",
+          "label": "Rota",
+          "kind": "text",
+          "choicesFrom": "proxy4auto/rotas?tipo=http",
+          "placeholder": "Vazio: o que chega do nó anterior"
+        },
+        {
+          "name": "caminhos",
+          "label": "Páginas",
+          "kind": "lines",
+          "help": "Um caminho por linha (até 20), como / e /api/status."
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 600000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 600000
+      }
     },
     {
-      "type": "converter", "name": "Converter endereço", "category": "Proxy",
+      "type": "converter",
+      "name": "Converter endereço",
+      "category": "Proxy",
       "desc": "Troca a URL do site original pela local (https://api.exemplo.com/x vira http://localhost-api/x) ou o contrário. Pode criar a rota que faltar.",
-      "keywords": ["url", "trocar", "local", "original", "reescrever"],
-      "takes": "any", "gives": "object",
+      "keywords": [
+        "url",
+        "trocar",
+        "local",
+        "original",
+        "reescrever"
+      ],
+      "takes": "any",
+      "gives": "object",
       "expects": "Uma URL completa. Se o campo ficar vazio, usa o texto que chega.",
       "returns": "A URL de entrada, a convertida, o sentido e a rota usada.",
-      "sample": { "de": "https://api.exemplo.com/v1/x?a=1", "para": "http://localhost-api/v1/x?a=1", "sentido": "original → local", "rota": "localhost-api:80" },
-      "params": { "url": "", "direcao": "auto", "criar": "nao" },
+      "sample": {
+        "de": "https://api.exemplo.com/v1/x?a=1",
+        "para": "http://localhost-api/v1/x?a=1",
+        "sentido": "original → local",
+        "rota": "localhost-api:80"
+      },
+      "params": {
+        "url": "",
+        "direcao": "auto",
+        "criar": "nao"
+      },
       "fields": [
-        { "name": "url", "label": "URL", "kind": "text", "placeholder": "Vazio: o texto que chega" },
-        { "name": "direcao", "label": "Sentido", "kind": "select", "options": [{ "value": "auto", "label": "Descobrir sozinho" }, { "value": "para_local", "label": "Original → local" }, { "value": "para_original", "label": "Local → original" }] },
-        { "name": "criar", "label": "Criar a rota se faltar", "kind": "select", "options": [{ "value": "nao", "label": "Não" }, { "value": "sim", "label": "Sim" }], "show": { "direcao": ["auto", "para_local"] } }
+        {
+          "name": "url",
+          "label": "URL",
+          "kind": "text",
+          "placeholder": "Vazio: o texto que chega"
+        },
+        {
+          "name": "direcao",
+          "label": "Sentido",
+          "kind": "select",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Descobrir sozinho"
+            },
+            {
+              "value": "para_local",
+              "label": "Original → local"
+            },
+            {
+              "value": "para_original",
+              "label": "Local → original"
+            }
+          ]
+        },
+        {
+          "name": "criar",
+          "label": "Criar a rota se faltar",
+          "kind": "select",
+          "options": [
+            {
+              "value": "nao",
+              "label": "Não"
+            },
+            {
+              "value": "sim",
+              "label": "Sim"
+            }
+          ],
+          "show": {
+            "direcao": [
+              "auto",
+              "para_local"
+            ]
+          }
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 60000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 60000
+      }
     },
     {
-      "type": "ajustar", "name": "Ajustar o proxy", "category": "Proxy",
+      "type": "ajustar",
+      "name": "Ajustar o proxy",
+      "category": "Proxy",
       "desc": "Liga ou desliga DNS local, hosts, reescrita de links e log detalhado, ou troca portas e o DNS de fora. Grava no config.txt e o proxy recarrega.",
-      "keywords": ["config", "configurar", "dns", "hosts", "reescrever links"],
-      "takes": "any", "gives": "object",
+      "keywords": [
+        "config",
+        "configurar",
+        "dns",
+        "hosts",
+        "reescrever links"
+      ],
+      "takes": "any",
+      "gives": "object",
       "expects": "Qualquer dado. Dá para usar {{input}} no valor.",
       "returns": "O ajuste, o valor de antes, o de depois e a configuração inteira.",
-      "sample": { "ajuste": "reescrever_links", "antes": false, "depois": true, "config": { "porta_http": 80, "porta_dns": 53, "dns_upstream": "8.8.8.8", "dns": true, "hosts": true, "reescrever_links": true, "log_detalhado": false } },
-      "params": { "ajuste": "reescrever_links", "ligado": "sim", "valor": "" },
+      "sample": {
+        "ajuste": "reescrever_links",
+        "antes": false,
+        "depois": true,
+        "config": {
+          "porta_http": 80,
+          "porta_dns": 53,
+          "dns_upstream": "8.8.8.8",
+          "dns": true,
+          "hosts": true,
+          "reescrever_links": true,
+          "log_detalhado": false
+        }
+      },
+      "params": {
+        "ajuste": "reescrever_links",
+        "ligado": "sim",
+        "valor": ""
+      },
       "fields": [
-        { "name": "ajuste", "label": "O que", "kind": "select", "options": [{ "value": "reescrever_links", "label": "Reescrever links e apagar rastros" }, { "value": "dns", "label": "DNS local" }, { "value": "hosts", "label": "Arquivo hosts" }, { "value": "log_detalhado", "label": "Log detalhado" }, { "value": "porta_http", "label": "Porta HTTP" }, { "value": "porta_dns", "label": "Porta do DNS" }, { "value": "dns_upstream", "label": "DNS de fora (upstream)" }] },
-        { "name": "ligado", "label": "Ligado", "kind": "select", "options": [{ "value": "sim", "label": "Sim" }, { "value": "nao", "label": "Não" }], "show": { "ajuste": ["reescrever_links", "dns", "hosts", "log_detalhado"] } },
-        { "name": "valor", "label": "Valor", "kind": "text", "placeholder": "80, 53 ou 8.8.8.8", "show": { "ajuste": ["porta_http", "porta_dns", "dns_upstream"] } }
+        {
+          "name": "ajuste",
+          "label": "O que",
+          "kind": "select",
+          "options": [
+            {
+              "value": "reescrever_links",
+              "label": "Reescrever links e apagar rastros"
+            },
+            {
+              "value": "dns",
+              "label": "DNS local"
+            },
+            {
+              "value": "hosts",
+              "label": "Arquivo hosts"
+            },
+            {
+              "value": "log_detalhado",
+              "label": "Log detalhado"
+            },
+            {
+              "value": "porta_http",
+              "label": "Porta HTTP"
+            },
+            {
+              "value": "porta_dns",
+              "label": "Porta do DNS"
+            },
+            {
+              "value": "dns_upstream",
+              "label": "DNS de fora (upstream)"
+            }
+          ]
+        },
+        {
+          "name": "ligado",
+          "label": "Ligado",
+          "kind": "select",
+          "options": [
+            {
+              "value": "sim",
+              "label": "Sim"
+            },
+            {
+              "value": "nao",
+              "label": "Não"
+            }
+          ],
+          "show": {
+            "ajuste": [
+              "reescrever_links",
+              "dns",
+              "hosts",
+              "log_detalhado"
+            ]
+          }
+        },
+        {
+          "name": "valor",
+          "label": "Valor",
+          "kind": "text",
+          "placeholder": "80, 53 ou 8.8.8.8",
+          "show": {
+            "ajuste": [
+              "porta_http",
+              "porta_dns",
+              "dns_upstream"
+            ]
+          }
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 30000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 30000
+      }
     },
     {
-      "type": "trafego", "name": "Tráfego recente", "category": "Proxy",
+      "type": "trafego",
+      "name": "Tráfego recente",
+      "category": "Proxy",
       "desc": "As últimas requisições que passaram pelo proxy, com um resumo: total, erros, não encontrados e tempos.",
-      "keywords": ["log", "requisições", "erros", "monitorar", "latência"],
-      "takes": "any", "gives": "object",
+      "keywords": [
+        "log",
+        "requisições",
+        "erros",
+        "monitorar",
+        "latência"
+      ],
+      "takes": "any",
+      "gives": "object",
       "expects": "Qualquer dado, ou uma rota para filtrar.",
       "returns": "Total, erros (5xx e falhas de conexão), não encontrados (4xx), tempo mediano e máximo, e as requisições (a mais nova primeiro).",
-      "sample": { "total": 12, "erros": 1, "nao_encontrados": 2, "ms_mediano": 140, "ms_maximo": 1830, "itens": [{ "quando": "2026-11-16T12:01:00.000Z", "rota": "localhost-api:80", "metodo": "GET", "caminho": "/v1/x", "status": 502, "ms": 1830, "falhou": false }] },
-      "params": { "rota": "", "minutos": 60, "so_erros": "nao", "quantas": 50 },
+      "sample": {
+        "total": 12,
+        "erros": 1,
+        "nao_encontrados": 2,
+        "ms_mediano": 140,
+        "ms_maximo": 1830,
+        "itens": [
+          {
+            "quando": "2026-11-16T12:01:00.000Z",
+            "rota": "localhost-api:80",
+            "metodo": "GET",
+            "caminho": "/v1/x",
+            "status": 502,
+            "ms": 1830,
+            "falhou": false
+          }
+        ]
+      },
+      "params": {
+        "rota": "",
+        "minutos": 60,
+        "so_erros": "nao",
+        "quantas": 50
+      },
       "fields": [
-        { "name": "rota", "label": "Rota", "kind": "text", "choicesFrom": "proxy4auto/rotas?tipo=http", "placeholder": "Vazio: todas" },
-        { "name": "minutos", "label": "Dos últimos (minutos)", "kind": "number", "min": 0, "max": 1440, "help": "0: tudo o que o proxy guarda (as últimas 400 linhas do log)." },
-        { "name": "so_erros", "label": "Só com erro", "kind": "select", "options": [{ "value": "nao", "label": "Não" }, { "value": "sim", "label": "Sim (status 400 ou mais e falhas)" }] },
-        { "name": "quantas", "label": "No máximo", "kind": "number", "min": 1, "max": 400 }
+        {
+          "name": "rota",
+          "label": "Rota",
+          "kind": "text",
+          "choicesFrom": "proxy4auto/rotas?tipo=http",
+          "placeholder": "Vazio: todas"
+        },
+        {
+          "name": "minutos",
+          "label": "Dos últimos (minutos)",
+          "kind": "number",
+          "min": 0,
+          "max": 1440,
+          "help": "0: tudo o que o proxy guarda (as últimas 400 linhas do log)."
+        },
+        {
+          "name": "so_erros",
+          "label": "Só com erro",
+          "kind": "select",
+          "options": [
+            {
+              "value": "nao",
+              "label": "Não"
+            },
+            {
+              "value": "sim",
+              "label": "Sim (status 400 ou mais e falhas)"
+            }
+          ]
+        },
+        {
+          "name": "quantas",
+          "label": "No máximo",
+          "kind": "number",
+          "min": 1,
+          "max": 400
+        }
       ],
-      "run": { "program": "node", "args": ["nos.mjs"], "timeout": 30000 }
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 30000
+      }
     }
   ]
 }
