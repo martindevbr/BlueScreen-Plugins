@@ -1,0 +1,28 @@
+.hp-wrap { display: flex; flex-direction: column; gap: 8px; padding: 10px; min-width: 0; box-sizing: border-box; }
+.hp-in { min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line-2); border-radius: 4px; padding: 5px 8px; font: inherit; box-sizing: border-box; }
+.hp-wrap > .hp-in, .hp-more .hp-ta { width: 100%; }
+.hp-pick, .hp-url { flex: 1; }
+.hp-method { flex: none; font-weight: 600; }
+.hp-ta { min-height: 60px; resize: vertical; font-family: monospace; font-size: 12px; }
+.hp-lbl { color: var(--fg-2); font-size: 12px; margin-bottom: -4px; }
+.hp-lbl span { color: var(--muted); font-size: 11px; }
+.hp-res:empty { display: none; }
+.hp-meta { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--fg-2); margin-bottom: 4px; }
+.hp-st { font-weight: 700; font-size: 12px; }
+.hp-ok { color: #3fb950; }
+.hp-err { color: #f85149; }
+.hp-pre { margin: 0; max-height: 320px; overflow: auto; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 8px; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+.hp-more summary { cursor: pointer; color: var(--fg-2); }
+.hp-more[open] { display: flex; flex-direction: column; gap: 6px; }
+.hp-hist { display: flex; flex-direction: column; gap: 1px; }
+.hp-hitem { display: flex; align-items: center; gap: 6px; background: none; border: 0; color: var(--fg); font: inherit; font-size: 12px; padding: 4px 6px; border-radius: 4px; cursor: pointer; text-align: left; min-width: 0; }
+.hp-hitem:hover { background: var(--hover); }
+.hp-hm { color: var(--accent-2); font-weight: 600; }
+.hp-row { display: flex; gap: 6px; align-items: center; }
+.hp-sp { flex: 1; }
+.hp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-kind { color: var(--muted); font-size: 11px; }
+.hp-hint { color: var(--muted); font-size: 12px; padding: 4px 6px; }
+.hp-sec { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 6px; }
+.hp-sec code { flex: 1; color: var(--accent-2); }
+.hp-secname, .hp-secval { flex: 1; }
