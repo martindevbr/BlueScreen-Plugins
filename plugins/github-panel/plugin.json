@@ -1,0 +1,19 @@
+{
+  "id": "github-panel",
+  "name": "GitHub Panel",
+  "description": "PRs, issues e Actions do repositório do projeto aberto, pelo GitHub CLI (gh) que você já usa, sem token novo. Estado dos checks de cada PR, o PR do branch atual na barra de status, abrir no navegador e fazer checkout de um PR.",
+  "version": "0.1.0",
+  "author": "Pizzy-23",
+  "license": "MIT",
+  "category": "integracoes",
+  "keywords": [
+    "github",
+    "gh",
+    "pull request",
+    "issues",
+    "actions",
+    "ci"
+  ],
+  "icon": "icon.svg",
+  "order": 111
+}

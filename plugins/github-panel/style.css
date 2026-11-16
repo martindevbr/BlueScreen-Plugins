@@ -1,0 +1,25 @@
+.gh-wrap { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; height: 100%; box-sizing: border-box; min-width: 0; }
+.gh-top { display: flex; align-items: center; gap: 6px; }
+.gh-repo { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-sp { flex: 1; }
+.gh-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+.gh-tab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--fg-2); padding: 4px 8px; cursor: pointer; font: inherit; font-size: 12px; }
+.gh-tab.on { color: var(--fg); border-bottom-color: var(--accent); }
+.gh-q { background: var(--bg); color: var(--fg); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; font: inherit; }
+.gh-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.gh-row { padding: 6px; border-radius: 6px; display: flex; flex-direction: column; gap: 3px; }
+.gh-row:hover { background: var(--hover); }
+.gh-l1 { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.gh-num { color: var(--muted); font-size: 12px; flex: none; }
+.gh-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-l2 { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; font-size: 11px; }
+.gh-meta { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.gh-tag { --gh-c: var(--muted); border: 1px solid color-mix(in srgb, var(--gh-c) 60%, transparent); color: var(--fg-2); background: color-mix(in srgb, var(--gh-c) 18%, transparent); border-radius: 10px; padding: 0 6px; }
+.gh-chk { font-weight: 600; font-size: 11px; flex: none; }
+.gh-good { color: #3fb950; --gh-c: #3fb950; } .gh-bad { color: #f85149; --gh-c: #f85149; } .gh-wait { color: #d29922; --gh-c: #d29922; } .gh-mute { color: var(--muted); }
+.gh-acts { display: none; gap: 4px; }
+.gh-row:hover .gh-acts, .gh-row:has(.gh-detail) .gh-acts { display: flex; }
+.gh-acts .chip { font-size: 11px; padding: 1px 8px; }
+.gh-detail { margin: 4px 0 0; max-height: 360px; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px; font-size: 11px; white-space: pre; }
+.gh-detail i { font-style: normal; }
+.gh-add { color: #3fb950; } .gh-del { color: #f85149; } .gh-hunk { color: var(--accent-2); }
