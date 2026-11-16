@@ -1,0 +1,18 @@
+{
+  "id": "open-ports",
+  "name": "Open Ports",
+  "description": "Quem está ouvindo em cada porta TCP do PC: o programa, o PID e se a porta está aberta só para este PC ou para a rede. Abrir no navegador e encerrar o processo (pelo PID exato, com confirmação). Atualiza sozinho a cada 5 segundos com o painel aberto.",
+  "version": "0.1.0",
+  "author": "Pizzy-23",
+  "license": "MIT",
+  "category": "desenvolvimento",
+  "keywords": [
+    "portas",
+    "tcp",
+    "processos",
+    "pid",
+    "servidor"
+  ],
+  "icon": "icon.svg",
+  "order": 115
+}

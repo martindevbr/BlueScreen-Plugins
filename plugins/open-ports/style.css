@@ -1,0 +1,18 @@
+.po-wrap { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; height: 100%; box-sizing: border-box; min-width: 0; }
+.po-row1 { display: flex; align-items: center; gap: 6px; }
+.po-q { flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line-2); border-radius: 4px; padding: 5px 8px; font: inherit; }
+.po-count { color: var(--muted); font-size: 11px; }
+.po-sp { flex: 1; }
+.po-chk { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--fg-2); }
+.po-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 1px; }
+.po-row { display: grid; grid-template-columns: 52px 1fr auto; grid-template-areas: "port who scope" "port acts acts"; gap: 2px 8px; align-items: center; padding: 5px 6px; border-radius: 6px; }
+.po-row:hover { background: var(--hover); }
+.po-port { grid-area: port; font: 600 14px var(--mono); color: var(--accent-2); }
+.po-who { grid-area: who; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.po-who i { color: var(--muted); font-style: normal; font-size: 11px; }
+.po-who small { display: block; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.po-scope { grid-area: scope; font-size: 10px; border-radius: 8px; padding: 0 6px; border: 1px solid var(--line-2); color: var(--fg-2); }
+.po-rede { border-color: #d29922; color: #d29922; }
+.po-acts { grid-area: acts; display: none; gap: 4px; }
+.po-row:hover .po-acts, .po-acts:has([data-sure]) { display: flex; }
+.po-acts .chip { font-size: 11px; padding: 1px 8px; }
