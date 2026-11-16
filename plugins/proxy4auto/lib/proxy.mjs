@@ -1,7 +1,8 @@
 // Proxy4Auto: a parte que não depende de rede nem de processo (testável sozinha).
 // O proxy vem embutido no plugin (lib/motor.mjs): põe um serviço da internet atrás de um nome local que resolve para
 // 127.0.0.1 e apaga os rastros do destino (links, cookies, cabeçalhos da Vercel e da Cloudflare).
-// Os nós ligam o motor quando precisam e falam com ele pela porta de controle (127.0.0.1:7170 por padrão).
+// Os nós montam um projeto (Novo proxy, Rota...), o Ligar o proxy sobe o motor e segura o fluxo; os outros nós
+// falam com o motor pela porta de controle (127.0.0.1:7170 por padrão).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -17,7 +18,6 @@ export function configuracoes(pastaDados, pastaPlugin) {
   const porta = portaValida(c.porta);
   return {
     porta, painel: `http://127.0.0.1:${porta}`,
-    ligarSozinho: !(c.ligar_sozinho === false || /^(nao|não|false|0|off)$/i.test(String(c.ligar_sozinho ?? ''))),
     dados: pastaDados || '',
     // as rotas e os ajustes do proxy ficam aqui, em texto: config.txt, apontamentos.txt e proxy.log
     pastaProxy: pastaDados ? path.join(pastaDados, 'proxy') : '',
@@ -125,6 +125,81 @@ export function paraOriginal(url, rotas, portaHttp = 80) {
   const r = alvo && alvo.tipo === 'http' ? acharRota(rotas, { ...alvo, porta: alvo.url && alvo.url.port ? alvo.porta : portaHttp }, portaHttp) || acharRota(rotas, { ...alvo, porta: null }, portaHttp) : null;
   if (!r) return null;
   return { rota: r, url: r.destino.replace(/\/$/, '') + alvo.url.pathname + alvo.url.search + alvo.url.hash };
+}
+
+// ---------- o projeto do proxy (o que os nós montam) ----------
+// Novo proxy começa um projeto, cada nó Rota devolve um projeto com mais uma rota e o Ligar o proxy sobe o que
+// chegar. O projeto é um objeto comum que anda pelas ligações do fluxo; nenhum nó de montagem mexe no PC.
+const simNao = (v, padrao) => (v == null || v === '' ? padrao : v === true || /^(sim|true|1|on)$/i.test(String(v)));
+const portaDe = (v, oQue) => { const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > 65535) throw new Error(`${oQue} inválida: "${v}" (use de 1 a 65535).`); return n; };
+export const ehProjeto = (v) => !!v && typeof v === 'object' && v.proxy4auto === 'projeto' && Array.isArray(v.rotas);
+export function novoProjeto(p = {}) {
+  return {
+    proxy4auto: 'projeto',
+    porta_http: p.porta_http == null || p.porta_http === '' ? 80 : portaDe(p.porta_http, 'Porta HTTP'),
+    nomes: p.nomes === 'hosts' ? 'hosts' : 'nenhum',
+    reescrever_links: simNao(p.reescrever_links, true),
+    rede: simNao(p.rede, false),
+    dns: simNao(p.dns, false),
+    log_detalhado: simNao(p.log_detalhado, false),
+    rotas: [],
+  };
+}
+const idDe = (r) => (r.tipo === 'tcp' ? `tcp:${r.porta}` : `${r.nome}:${r.porta}`);
+const localDe = (r) => (r.tipo === 'tcp' ? `127.0.0.1:${r.porta}` : 'http://' + r.nome + (r.porta === 80 ? '' : ':' + r.porta));
+// o projeto com mais uma rota (não muda o que recebeu). A mesma rota de novo não duplica; o mesmo nome com outro
+// destino é erro, porque num fluxo isso é quase sempre engano
+export function comRota(proj, r) {
+  let nova;
+  if (r.tipo === 'tcp') {
+    const destino = String(r.destino || '').trim();
+    if (!/^[^\s:]+:\d{1,5}$/.test(destino.replace(/^\[.*\]/, 'x'))) throw new Error('No TCP o destino é host:porta (ex.: 203.0.113.10:5432).');
+    if (r.porta == null || r.porta === '') throw new Error('No TCP informe a porta local (ex.: 5433): o serviço fica em 127.0.0.1:<porta>.');
+    nova = { tipo: 'tcp', porta: portaDe(r.porta, 'Porta local'), destino };
+  } else {
+    const u = normalizarDestino(r.destino);
+    const destino = u.pathname === '/' && !u.search ? u.origin : u.href;
+    const porta = r.porta == null || r.porta === '' ? proj.porta_http : portaDe(r.porta, 'Porta local');
+    const nome = String(r.nome || '').trim().toLowerCase() || sugerirNome(destino, proj.rotas.filter((x) => x.tipo === 'http' && x.porta === porta && x.destino !== destino).map((x) => x.nome));
+    if (!/^[a-z0-9._-]+$/.test(nome)) throw new Error(`Nome local inválido: "${nome}". Use letras, números, ponto e hífen.`);
+    nova = { tipo: 'http', nome, porta, destino };
+  }
+  nova.id = idDe(nova); nova.local = localDe(nova);
+  const igual = proj.rotas.find((x) => x.id === nova.id);
+  if (igual) {
+    if (igual.destino === nova.destino) return proj;
+    throw new Error(`${descreverRota(igual)} já está neste proxy com outro destino. Use outro nome${nova.tipo === 'tcp' ? ' (outra porta)' : ''}.`);
+  }
+  if (proj.rotas.some((x) => x.porta === nova.porta && x.tipo !== nova.tipo)) throw new Error(`A porta ${nova.porta} já é usada por uma rota ${nova.tipo === 'tcp' ? 'HTTP' : 'TCP'} deste proxy.`);
+  return { ...proj, rotas: [...proj.rotas, nova] };
+}
+// várias de uma vez, uma por linha: "nome destino", "nome:porta destino", "tcp porta destino:porta" ou só o destino
+export function comRotas(proj, texto) {
+  let n = 0;
+  for (const bruta of (Array.isArray(texto) ? texto : String(texto || '').split(/\r?\n/))) {
+    const s = String(bruta).trim();
+    if (!s || s.startsWith('#')) continue;
+    n++;
+    const p = s.split(/\s+/).filter((x) => !['->', '=>', '='].includes(x));
+    try {
+      if (p[0].toLowerCase() === 'tcp') proj = comRota(proj, { tipo: 'tcp', porta: p[1], destino: p[2] });
+      else if (p.length === 1) proj = comRota(proj, { tipo: 'http', destino: p[0] });
+      else { const m = p[0].match(/^(.+?)(?::(\d+))?$/); proj = comRota(proj, { tipo: 'http', nome: m[1], porta: m[2], destino: p[1] }); }
+    } catch (e) { throw new Error(`Linha ${n} ("${s}"): ${e.message}`); }
+  }
+  if (!n) throw new Error('Escreva as rotas, uma por linha: "nome destino" ou só o destino.');
+  return proj;
+}
+// os dois arquivos de texto que o motor lê, escritos a partir do projeto
+export function textoDasRotas(proj) {
+  return ['# Rotas do proxy: escritas pelo nó Ligar o proxy a partir do fluxo. Mude no fluxo, não aqui.',
+    ...proj.rotas.map((r) => (r.tipo === 'tcp' ? `tcp ${r.porta} ${r.destino}` : `${r.porta === proj.porta_http ? r.nome : r.nome + ':' + r.porta} ${r.destino}`)), ''].join('\r\n');
+}
+export function textoDosAjustes(proj) {
+  const sn = (v) => (v ? 'sim' : 'nao'), at = (v) => (v ? 'ativo' : 'desativado');
+  return ['# Ajustes do proxy: escritos pelo nó Ligar o proxy a partir do fluxo. Mude no fluxo, não aqui.',
+    `porta_http=${proj.porta_http}`, `dns=${at(proj.dns)}`, 'porta_dns=53', 'dns_upstream=8.8.8.8', `hosts=${at(proj.nomes === 'hosts')}`,
+    `reescrever_links=${sn(proj.reescrever_links)}`, `rede=${sn(proj.rede)}`, `log_detalhado=${sn(proj.log_detalhado)}`, ''].join('\r\n');
 }
 
 // ---------- o disfarce ----------

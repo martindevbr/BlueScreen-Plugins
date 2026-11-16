@@ -9,7 +9,7 @@
  *  - Reescrita de links: URLs do destino no HTML/CSS/JS/JSON viram o endereço local
  *  - Porta de controle em 127.0.0.1 (--painel): é por ela que os nós do Automator mandam
  *
- *  Uso (quem chama são os nós):  node motor.mjs --dados <pasta> --painel <porta> [--servidor <servidor.json>]
+ *  Uso (quem chama são os nós):  node motor.mjs --dados <pasta> --painel <porta> [--dono <pid>]
  *  A pasta de dados guarda só texto: config.txt, apontamentos.txt e proxy.log.
  *  Sem dependências externas. Node >= 18.
  */
@@ -699,7 +699,7 @@ function estado() {
   });
   return {
     motor: 'proxy4auto', pid: process.pid, desde: INICIO, administrador: podeGravarHosts(),
-    dados: DIR, ate_fechar: !!ARQ_SERVIDOR,
+    dados: DIR, dono: DONO || null,
     config: {
       porta_http: cfg.porta_http, porta_dns: cfg.porta_dns, dns_upstream: cfg.dns_upstream,
       dns: cfg.dnsAtivo, hosts: cfg.hostsAtivo, reescrever_links: cfg.reescrever, log_detalhado: cfg.logDet, rede: cfg.rede,
@@ -913,17 +913,16 @@ function criarArquivos() {
   ].join('\r\n'));
 }
 
-// "até fechar o BlueScreen": o servidor do plugin grava o PID dele em servidor.json; sumiu por 15 s, o proxy sai
-const ARQ_SERVIDOR = arg('--servidor');
-function vigiarBlueScreen() {
-  if (!ARQ_SERVIDOR) return;
-  let faltas = 0;
+// O proxy vive enquanto o fluxo que o ligou roda: o nó Ligar o proxy passa o PID dele em --dono e fica segurando
+// o fluxo. Parou o fluxo, o nó morre; o motor percebe em até 1 s, tira os nomes do hosts e sai.
+const DONO = Number(arg('--dono')) || 0;
+function vigiarDono() {
+  if (!DONO) return;
   setInterval(() => {
     let vivo = false;
-    try { process.kill(JSON.parse(fs.readFileSync(ARQ_SERVIDOR, 'utf8')).pid, 0); vivo = true; } catch (e) { vivo = e.code === 'EPERM'; }
-    faltas = vivo ? 0 : faltas + 1;
-    if (faltas >= 3) encerrar('o BlueScreen fechou');
-  }, 5000).unref();
+    try { process.kill(DONO, 0); vivo = true; } catch (e) { vivo = e.code === 'EPERM'; }
+    if (!vivo) encerrar('o fluxo parou');
+  }, 1000).unref();
 }
 
 // ------------------------------------------------------------------ main
@@ -950,7 +949,7 @@ iniciarDns();
 sincronizarHosts();
 vigiar(ARQ_APONT, 'apontamentos.txt');
 vigiar(ARQ_CONFIG, 'config.txt');
-vigiarBlueScreen();
+vigiarDono();
 // porta que não abriu (outro programa usando) é tentada de novo: quando o outro sair, a rota passa a responder
 setInterval(() => { if (falhasHttp.size) reiniciarHttp(); }, 5000);
 

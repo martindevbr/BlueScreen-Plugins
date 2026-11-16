@@ -1,6 +1,5 @@
 // Proxy4Auto: servidor só das listas dos campos do Automator ("choicesFrom": "proxy4auto/rotas"). Não tem tela:
-// os nós rodam pelo nos.mjs. Enquanto o BlueScreen está aberto ele deixa o PID em servidor.json: é assim que o
-// proxy ligado "até fechar o BlueScreen" sabe a hora de sair.
+// os nós rodam pelo nos.mjs. Com o proxy ligado a lista vem dele; desligado, das rotas do último fluxo que o ligou.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -13,10 +12,6 @@ const p = new Plugin();
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const DADOS = process.env.BLUESCREEN_PLUGIN_DATA || '';
 
-if (DADOS) {
-  try { fs.mkdirSync(DADOS, { recursive: true }); fs.writeFileSync(path.join(DADOS, 'servidor.json'), JSON.stringify({ pid: process.pid })); } catch {}
-}
-
 p.route('proxy4auto/rotas', async (req) => {
   if (req.remote) return Plugin.reply(403, { error: 'O Proxy4Auto só responde no próprio PC.' });
   const tipo = (req.query && req.query.tipo) || 'todas';
@@ -28,7 +23,7 @@ p.route('proxy4auto/rotas', async (req) => {
     const est = await (await fetch(cfg.painel + '/api/estado', { signal: AbortSignal.timeout(2500) })).json();
     if (est.motor === 'proxy4auto') rotas = est.rotas || [];
   } catch {}
-  // proxy desligado: as rotas são texto na pasta de dados, a lista sai de lá
+  // proxy desligado: as rotas do último fluxo que o ligou ficaram em texto na pasta de dados
   if (!rotas) {
     const ler = (f) => { try { return fs.readFileSync(path.join(cfg.pastaProxy, f), 'utf8'); } catch { return ''; } };
     rotas = lerApontamentos(ler('apontamentos.txt'), portaHttpDe(ler('config.txt')));

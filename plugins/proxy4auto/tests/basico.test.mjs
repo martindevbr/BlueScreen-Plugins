@@ -1,5 +1,6 @@
 // Testes do Proxy4Auto: node tests/basico.test.mjs
-// A lógica sozinha e depois os nós contra o proxy embutido de verdade, em portas livres e com um hosts de mentira.
+// A lógica sozinha e depois os nós como o Automator os roda (Novo proxy → Rota → Ligar o proxy segurando o fluxo),
+// contra o proxy embutido de verdade, em portas livres e com um hosts de mentira.
 // Nada toca no hosts, no DNS nem num proxy que esteja rodando neste PC.
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -9,7 +10,7 @@ import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { SCRIPTS, psTexto } from '../lib/admin.mjs';
-import { semBlocoDoProxy, lerAlvo, acharRota, sugerirNome, normalizarDestino, paraLocal, paraOriginal, conferirDisfarce, trafego, portaValida, lerApontamentos, portaHttpDe, nomesNoHosts, baseDominio } from '../lib/proxy.mjs';
+import { semBlocoDoProxy, lerAlvo, acharRota, sugerirNome, normalizarDestino, paraLocal, paraOriginal, conferirDisfarce, trafego, portaValida, lerApontamentos, portaHttpDe, nomesNoHosts, baseDominio, ehProjeto, novoProjeto, comRota, comRotas, textoDasRotas, textoDosAjustes } from '../lib/proxy.mjs';
 
 const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 let ok = 0;
@@ -124,6 +125,27 @@ caso('lerApontamentos: as rotas saem do texto com o proxy desligado', () => {
   assert.deepEqual(r.map((x) => `${x.id} ${x.local} ${x.destino}`), ['localhost-api:8080 http://localhost-api:8080 https://api.x.com', 'site:2111 http://site:2111 http://loja.com', 'tcp:5433 127.0.0.1:5433 1.2.3.4:5432']);
   assert.equal(portaHttpDe('a=1\r\nporta_http=8080\r\n'), 8080);
 });
+caso('projeto: os nós de montagem só devolvem o projeto com mais uma parte', () => {
+  const p0 = novoProjeto({ porta_http: '8080', nomes: 'hosts', reescrever_links: 'nao' });
+  assert.deepEqual([p0.porta_http, p0.nomes, p0.reescrever_links, p0.rede, p0.rotas.length], [8080, 'hosts', false, false, 0]);
+  assert.equal(novoProjeto().porta_http, 80); assert.equal(novoProjeto().reescrever_links, true);
+  assert.throws(() => novoProjeto({ porta_http: 'abc' }), /Porta HTTP inválida/);
+  const p1 = comRota(p0, { tipo: 'http', destino: 'https://api.cliente.com.br' });
+  assert.equal(p0.rotas.length, 0, 'o projeto que entrou não muda'); assert.ok(ehProjeto(p1) && !ehProjeto({ rotas: [] }) && !ehProjeto('x'));
+  assert.deepEqual(p1.rotas[0], { tipo: 'http', nome: 'localhost-api-cliente', porta: 8080, destino: 'https://api.cliente.com.br', id: 'localhost-api-cliente:8080', local: 'http://localhost-api-cliente:8080' });
+  assert.equal(comRota(p1, { tipo: 'http', destino: 'https://api.cliente.com.br/' }), p1, 'a mesma rota de novo não duplica');
+  assert.throws(() => comRota(p1, { tipo: 'http', nome: 'localhost-api-cliente', destino: 'https://outro.com' }), /outro destino/);
+  assert.throws(() => comRota(p1, { tipo: 'tcp', destino: '203.0.113.10', porta: 5433 }), /host:porta/);
+  assert.throws(() => comRota(p1, { tipo: 'tcp', destino: '203.0.113.10:5432' }), /porta local/);
+  const p2 = comRotas(p1, 'site https://loja.com\n# comentário\ntcp 5433 1.2.3.4:5432\nhttps://x.dev/\nfixo:9000 10.0.0.1:3000');
+  assert.deepEqual(p2.rotas.map((r) => r.id), ['localhost-api-cliente:8080', 'site:8080', 'tcp:5433', 'localhost-x:8080', 'fixo:9000']);
+  assert.throws(() => comRotas(p2, 'ok https://a.com\ntcp 9000 1.2.3.4:1'), /Linha 2.*já é usada por uma rota HTTP/);
+  assert.throws(() => comRotas(p2, ''), /uma por linha/);
+  assert.match(textoDasRotas(p2), /\r\nlocalhost-api-cliente https:\/\/api\.cliente\.com\.br\r\nsite https:\/\/loja\.com\r\ntcp 5433 1\.2\.3\.4:5432\r\nlocalhost-x https:\/\/x\.dev\r\nfixo:9000 http:\/\/10\.0\.0\.1:3000\r\n$/);
+  assert.match(textoDosAjustes(p2), /porta_http=8080\r\ndns=desativado[\s\S]*hosts=ativo\r\nreescrever_links=nao\r\nrede=nao/);
+  // o que o texto diz é o que o servidor das listas lê com o proxy desligado
+  assert.deepEqual(lerApontamentos(textoDasRotas(p2), 8080).map((r) => r.id), p2.rotas.map((r) => r.id));
+});
 caso('sem executável: a pasta do plugin só tem módulo, texto e ícone', () => {
   const todos = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? todos(path.join(d, e.name)) : [path.join(d, e.name)]));
   const fora = todos(RAIZ).filter((f) => !/\.(mjs|json|md|svg)$/i.test(f));
@@ -133,27 +155,44 @@ caso('sem executável: a pasta do plugin só tem módulo, texto e ícone', () =>
     assert.ok(!/['"][^'"\s]*\.(bat|cmd|ps1)['"]/i.test(t) && !/cmd\.exe/i.test(t), f + ' chama arquivo de lote ou de script');
   }
 });
+caso('os nós do automator.json são os do programa, e não há nó de desligar', async () => {
+  const a = JSON.parse(fs.readFileSync(path.join(RAIZ, 'automator.json'), 'utf8')).nodes;
+  const fonte = fs.readFileSync(path.join(RAIZ, 'nos.mjs'), 'utf8');
+  for (const n of a) assert.ok(new RegExp(`\\n  async ${n.type}\\(`).test(fonte), 'nó sem programa: ' + n.type);
+  assert.deepEqual(a.slice(0, 3).map((n) => n.type), ['novo', 'rota', 'ligar'], 'a montagem vem primeiro na paleta');
+  assert.ok(!a.some((n) => /deslig/i.test(n.type + n.name)), 'o proxy desliga quando o fluxo para');
+  assert.equal(a.find((n) => n.type === 'ligar').run.hold, true, 'o Ligar segura o fluxo sem o teto de tempo');
+});
 
 // ---------- os nós, contra o motor de verdade ----------
 // O proxy embutido sobe numa pasta de dados temporária, em portas livres, com um hosts de mentira
 // (PROXY4AUTO_HOSTS) e um destino falso. Nada toca no hosts, no DNS nem nas portas 80 e 7170 deste PC.
 function escutar(fn) { return new Promise((ok) => { const s = http.createServer(fn).listen(0, '127.0.0.1', () => ok(s)); }); }
 const portaLivre = async () => { const s = await escutar(() => {}); const p = s.address().port; await new Promise((r) => s.close(r)); return p; };
+const dormir = (ms) => new Promise((ok) => setTimeout(ok, ms));
 const DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'proxy4auto-teste-'));
 const HOSTS = path.join(DADOS, 'hosts-falso');
 const ENV = { ...process.env, PROXY4AUTO_HOSTS: HOSTS };
-function no(node, params = {}, input = null) {
-  return new Promise((ok) => {
-    const c = spawn(process.execPath, [path.join(RAIZ, 'nos.mjs')], { cwd: RAIZ, env: ENV });
-    let out = '', err = '';
-    c.stdout.on('data', (d) => (out += d)); c.stderr.on('data', (d) => (err += d));
-    c.on('close', (code) => { let v = null; try { v = JSON.parse(out); } catch {} ok({ code, v, err: err.trim() }); });
-    c.stdin.end(JSON.stringify({ node, params, input, data: DADOS }));
-  });
+// roda um nó como o Automator roda; `segura` devolve o processo sem esperar (o Ligar o proxy fica em execução)
+function no(node, params = {}, input = null, segura = false) {
+  const c = spawn(process.execPath, [path.join(RAIZ, 'nos.mjs')], { cwd: RAIZ, env: ENV });
+  let out = '', err = '';
+  c.stdout.on('data', (d) => (out += d)); c.stderr.on('data', (d) => (err += d));
+  const fim = new Promise((ok) => c.on('close', (code) => { let v = null; try { v = JSON.parse(out); } catch {} ok({ code, v, err: err.trim() }); }));
+  c.stdin.end(JSON.stringify({ node, params, input, data: DADOS }));
+  return segura ? { processo: c, fim } : fim;
 }
-const ajustes = (o) => fs.writeFileSync(path.join(DADOS, 'settings.json'), JSON.stringify(o));
+const noAr = async () => (await no('status', {})).v.port === 'true';
+async function ate(cond, segundos, oQue) { for (let i = 0; i < segundos * 5; i++) { if (await cond()) return; await dormir(200); } assert.fail(oQue); }
+// o fluxo: Novo proxy → Rota → Rota → ... (cada nó recebe a saída do anterior)
+async function montar(novo, ...rotas) {
+  let r = await no('novo', novo);
+  assert.equal(r.code, 0, r.err);
+  for (const rota of rotas) { r = await no('rota', rota, r.v); assert.equal(r.code, 0, r.err); }
+  return r.v;
+}
 
-caso('nós: o proxy embutido de ponta a ponta', async () => {
+caso('nós: monta, liga, usa e para o fluxo', async () => {
   // o "site": entrega o próprio endereço em links, cabeçalhos e cookie, como um site de verdade
   const site = await escutar((q, s) => {
     const eu = 'http://' + q.headers.host;
@@ -166,35 +205,39 @@ caso('nós: o proxy embutido de ponta a ponta', async () => {
   const [pc, ph, morta] = [await portaLivre(), await portaLivre(), await portaLivre()];
   const ocupada = await escutar((_q, s) => s.end('outro programa'));
   fs.writeFileSync(HOSTS, '127.0.0.1 meu-site\r\n');
-  fs.mkdirSync(path.join(DADOS, 'proxy'), { recursive: true });
-  fs.writeFileSync(path.join(DADOS, 'proxy', 'config.txt'), `porta_http=${ph}\r\ndns=desativado\r\nporta_dns=5399\r\nhosts=ativo\r\nreescrever_links=sim\r\n`);
-  fs.writeFileSync(path.join(DADOS, 'servidor.json'), JSON.stringify({ pid: process.pid })); // o "BlueScreen" é este teste
+  fs.writeFileSync(path.join(DADOS, 'settings.json'), JSON.stringify({ porta: pc }));
+  const hostsLimpo = () => fs.readFileSync(HOSTS, 'utf8').trim() === '127.0.0.1 meu-site';
+  let ligado = null;
   try {
-    ajustes({ porta: pc, ligar_sozinho: false });
-    let r = await no('status', {});
-    assert.equal(r.v.port, 'false'); assert.match(r.v.value.motivo, /desligado/);
-    r = await no('rotas', {});
-    assert.equal(r.code, 1); assert.match(r.err, /está desligado/, 'sem "ligar sozinho", avisa em vez de ligar');
+    // desligado: os nós de uso avisam; os de montagem funcionam (não mexem no PC)
+    assert.equal(await noAr(), false);
+    let r = await no('rotas', {});
+    assert.equal(r.code, 1); assert.match(r.err, /nenhum fluxo está com ele ligado/);
+    r = await no('rota', { tipo: 'http', destino });
+    assert.equal(r.code, 1); assert.match(r.err, /depois de um Novo proxy/);
+    r = await no('ligar', {}, await montar({ porta_http: ph }));
+    assert.equal(r.code, 1); assert.match(r.err, /chegou sem rotas/);
+    r = await no('rota', { tipo: 'http', destino: 'ftp://x.com' }, await montar({ porta_http: ph }));
+    assert.match(r.err, /só repassa http e https/);
 
-    ajustes({ porta: pc, ligar_sozinho: true });
-    r = await no('apontar', { tipo: 'http', destino: destino + '/', nome: 'localhost-api', testar: 'sim' });
-    assert.equal(r.code, 0, r.err); assert.equal(r.v.criada, true); assert.equal(r.v.teste.ok, true);
-    assert.equal(r.v.proxy_ligado_agora, true, 'o nó ligou o proxy sozinho');
-    assert.equal(r.v.resolve, false); assert.match(r.v.dica, /Permissão de administrador/);
-    assert.match(fs.readFileSync(path.join(DADOS, 'proxy', 'apontamentos.txt'), 'utf8'), /^localhost-api\s+http:\/\/127\.0\.0\.1:\d+\s*$/m, 'porta padrão não vai na linha');
-    assert.match(fs.readFileSync(HOSTS, 'utf8'), /proxy4auto[\s\S]*127\.0\.0\.1\tlocalhost-api/, 'com permissão, o proxy grava o hosts');
-    r = await no('apontar', { tipo: 'http', destino, nome: 'localhost-api' });
-    assert.equal(r.v.mudou, false, 'o mesmo destino: nada a fazer'); assert.ok(!r.v.proxy_ligado_agora);
-    r = await no('apontar', { tipo: 'http', destino: 'https://outro.exemplo.com', nome: 'localhost-api' });
-    assert.equal(r.code, 1); assert.match(r.err, /já existe com outro destino/);
-    r = await no('apontar', { tipo: 'tcp', destino: '203.0.113.10', porta: '5433' });
-    assert.match(r.err, /host:porta/);
+    // porta de uma rota ocupada por outro programa: o Ligar para com erro e não deixa proxy para trás
+    r = await no('ligar', {}, await montar({ porta_http: ph }, { tipo: 'http', destino, nome: 'preso', porta: String(ocupada.address().port) }));
+    assert.equal(r.code, 1); assert.match(r.err, new RegExp(`não ficou de pé: a porta ${ocupada.address().port} não abriu`));
+    if (process.platform === 'win32') assert.match(r.err, /está com node/, 'no Windows diz qual programa ocupa a porta');
+    assert.equal(await noAr(), false);
+
+    // o fluxo de verdade: Novo proxy → Rota → Rota (várias) → Ligar o proxy, que fica segurando
+    const projeto = await montar({ porta_http: ph, nomes: 'hosts' }, { tipo: 'http', destino: destino + '/', nome: 'localhost-api' }, { tipo: 'lista', lista: [`http://127.0.0.1:${morta}`] });
+    assert.deepEqual(projeto.rotas.map((x) => x.nome), ['localhost-api', 'localhost-servico']);
+    ligado = no('ligar', {}, projeto, true);
+    await ate(noAr, 20, 'o proxy não subiu');
+    assert.equal(ligado.processo.exitCode, null, 'o nó Ligar o proxy continua em execução: é ele que segura o fluxo');
+    assert.match(fs.readFileSync(HOSTS, 'utf8'), /proxy4auto[\s\S]*127\.0\.0\.1\tlocalhost-api\r\n127\.0\.0\.1\tlocalhost-servico/, 'com "Gravar no hosts", os nomes vão para o hosts');
 
     r = await no('status', { exigir: 'inteiro' });
-    assert.equal(r.v.port, 'true', JSON.stringify(r.v)); assert.equal(r.v.value.administrador, true); assert.equal(r.v.value.fica_ligado, 'até fechar o BlueScreen');
-    assert.deepEqual(r.v.value.nomes_sem_resolver, ['localhost-api']);
-    r = await no('status', { exigir: 'nomes' });
-    assert.equal(r.v.port, 'false', 'o nome não está no hosts de verdade');
+    assert.equal(r.v.port, 'true', JSON.stringify(r.v)); assert.equal(r.v.value.rotas_http, 2); assert.equal(r.v.value.hosts, 'ok');
+    r = await no('ligar', {}, projeto);
+    assert.equal(r.code, 1); assert.match(r.err, /Já há um proxy ligado por outro fluxo/);
 
     r = await no('pedir', { rota: destino + '/api' });
     assert.equal(r.code, 0, r.err); assert.equal(r.v.status, 200);
@@ -209,68 +252,51 @@ caso('nós: o proxy embutido de ponta a ponta', async () => {
     assert.equal(r.v.port, 'true', JSON.stringify(r.v));
     r = await no('comparar', { rota: 'localhost-api', caminhos: ['/', '/api'] });
     assert.equal(r.v.port, 'true', JSON.stringify(r.v)); assert.equal(r.v.value.paginas.length, 2);
-    r = await no('ajustar', { ajuste: 'reescrever_links', ligado: 'nao' });
-    assert.equal(r.v.depois, false); assert.equal(r.v.mudou, true);
-    r = await no('disfarce', { rota: 'localhost-api', caminhos: ['/'] });
-    assert.equal(r.v.port, 'false'); assert.ok(r.v.value.vazamentos.length >= 2 && r.v.value.dica, 'sem a reescrita, o destino aparece');
-    await no('ajustar', { ajuste: 'reescrever_links', ligado: 'sim' });
-
-    // rota para um destino que não responde, e uma porta local que outro programa já usa
-    r = await no('apontar', { tipo: 'http', destino: `http://127.0.0.1:${morta}`, testar: 'sim' });
-    assert.equal(r.v.rota.nome, 'localhost-servico'); assert.equal(r.v.teste.ok, false);
     r = await no('esperar', { rota: 'localhost-servico', tempo_s: 2, intervalo_s: 1 });
     assert.equal(r.v.port, 'false'); assert.ok(r.v.value.tentativas >= 2, JSON.stringify(r.v));
     r = await no('esperar', { rota: 'localhost-api', tempo_s: 5 });
     assert.equal(r.v.port, 'true'); assert.equal(r.v.value.tentativas, 1);
     r = await no('testar', {});
     assert.equal(r.v.port, 'false'); assert.equal(r.v.value.falharam, 1); assert.equal(r.v.value.testadas, 2);
-    r = await no('apontar', { tipo: 'http', destino, nome: 'preso', porta: String(ocupada.address().port), testar: 'nao' });
-    assert.match(r.v.porta_fechada, /a porta \d+ não abriu/, JSON.stringify(r.v));
-    if (process.platform === 'win32') assert.match(r.v.porta_fechada, /está com node/, 'no Windows diz qual programa ocupa a porta');
-    r = await no('status', { exigir: 'inteiro' });
-    assert.equal(r.v.port, 'false'); assert.match(r.v.value.problemas.join(), /não abriu/);
-    r = await no('remover', { rota: 'preso' });
-    assert.equal(r.v.removida, true); assert.equal(r.v.restam, 2);
-    r = await no('remover', { rota: 'nada', se_nao_existir: 'ignorar' });
-    assert.equal(r.v.removida, false);
-
     r = await no('converter', { url: destino + '/a?b=1' });
     assert.equal(r.v.para, `http://localhost-api:${ph}/a?b=1`);
     r = await no('converter', { url: 'https://nao.mapeado.com/x' });
-    assert.match(r.err, /Nenhuma rota/);
+    assert.match(r.err, /Acrescente um nó Rota/);
     r = await no('rotas', { filtro: 'http' });
     assert.deepEqual(r.v.map((x) => x.nome), ['localhost-api', 'localhost-servico']); assert.ok(r.v[0].requisicoes > 3);
     r = await no('trafego', {});
     assert.ok(r.v.total > 3 && r.v.por_rota[0].rota === `localhost-api:${ph}` && r.v.mais_lentas.length, JSON.stringify(r.v).slice(0, 300));
-
-    // administrador: o que dá para conferir sem a pergunta do Windows
-    r = await no('admin', { acao: 'hosts_gravar' });
-    assert.equal(r.v.port, 'true'); assert.equal(r.v.value.resultado, 'já estava certo');
     r = await no('admin', { acao: 'dns_proxy' });
-    assert.equal(r.code, 1); assert.match(r.err, /só consulta DNS na porta 53/, 'fora da porta 53, nem pede a permissão');
+    assert.equal(r.code, 1); assert.match(r.err, /DNS local do proxy está desligado/, 'sem o DNS local, nem pede a permissão');
     r = await no('admin', { acao: 'programa', programa: '' });
     assert.match(r.err, /Informe o programa/);
 
-    r = await no('ligar', {});
-    assert.equal(r.v.ja_estava, true); assert.equal(r.v.rotas, 2);
-    r = await no('desligar', {});
-    assert.equal(r.code, 0, r.err); assert.equal(r.v.desligado, true); assert.equal(r.v.hosts, 'bloco do proxy removido');
-    assert.equal(fs.readFileSync(HOSTS, 'utf8').trim(), '127.0.0.1 meu-site', 'o hosts volta ao que era');
-    r = await no('desligar', {});
-    assert.equal(r.v.ja_estava, true); assert.equal(r.v.hosts, 'nada a limpar');
-
-    // "até fechar o BlueScreen": com o servidor do plugin fora do ar, o proxy sai sozinho
-    fs.writeFileSync(path.join(DADOS, 'servidor.json'), JSON.stringify({ pid: process.pid }));
-    r = await no('ligar', { fica: 'bluescreen' });
-    assert.equal(r.v.ja_estava, false); assert.equal(r.v.fica_ligado, 'até fechar o BlueScreen'); assert.equal(r.v.rotas, 2, 'as rotas ficam guardadas');
-    fs.writeFileSync(path.join(DADOS, 'servidor.json'), JSON.stringify({ pid: 999999 }));
-    let saiu = false;
-    for (let i = 0; i < 50 && !saiu; i++) { await new Promise((ok) => setTimeout(ok, 500)); saiu = (await no('status', {})).v.port === 'false'; }
-    assert.ok(saiu, 'o proxy continuou ligado sem o BlueScreen');
-    assert.equal(fs.readFileSync(HOSTS, 'utf8').trim(), '127.0.0.1 meu-site');
+    // parar o fluxo: o BlueScreen encerra o nó, e o proxy sai sozinho tirando os nomes do hosts
+    ligado.processo.kill();
+    await ligado.fim; ligado = null;
+    await ate(async () => !(await noAr()) && hostsLimpo(), 10, 'o proxy continuou ligado (ou os nomes ficaram no hosts) depois do fluxo parar');
     assert.deepEqual(fs.readdirSync(path.join(DADOS, 'proxy')).sort(), ['apontamentos.txt', 'config.txt', 'proxy.log'], 'a pasta de dados do proxy só tem texto');
+
+    // outro fluxo, outro proxy: sem a reescrita, o destino aparece; e o que ligou antes não deixou rota para trás
+    ligado = no('ligar', {}, await montar({ porta_http: ph, reescrever_links: 'nao' }, { tipo: 'http', destino, nome: 'cru' }), true);
+    await ate(noAr, 20, 'o segundo proxy não subiu');
+    r = await no('rotas', {});
+    assert.deepEqual(r.v.map((x) => x.nome), ['cru'], 'o proxy é o que o fluxo montou, nada mais');
+    assert.ok(hostsLimpo(), 'sem "Gravar no hosts", o hosts não é tocado');
+    r = await no('disfarce', { rota: 'cru', caminhos: ['/'] });
+    assert.equal(r.v.port, 'false'); assert.ok(r.v.value.vazamentos.length >= 2 && /Novo proxy/.test(r.v.value.dica), 'sem a reescrita, o destino aparece');
+    ligado.processo.kill();
+    await ligado.fim; ligado = null;
+    await ate(async () => !(await noAr()), 10, 'o segundo proxy continuou ligado');
+
+    // com tempo marcado: fica ligado esse tempo, desliga sozinho e o fluxo segue com o resumo
+    const t0 = Date.now();
+    r = await no('ligar', { minutos: 0.05 }, await montar({ porta_http: ph }, { tipo: 'http', destino, nome: 'breve' }));
+    assert.equal(r.code, 0, r.err); assert.ok(Date.now() - t0 >= 3000 && r.v.ligado_por_s >= 3, JSON.stringify(r.v));
+    assert.deepEqual(r.v.rotas, [{ id: `breve:${ph}`, local: `http://breve:${ph}`, destino }]); assert.equal(r.v.requisicoes, 0);
+    assert.equal(await noAr(), false);
   } finally {
-    await no('desligar', { hosts: 'manter' });
+    if (ligado) { ligado.processo.kill(); await ligado.fim; await dormir(2500); }
     site.close(); ocupada.close();
     fs.rmSync(DADOS, { recursive: true, force: true });
   }
