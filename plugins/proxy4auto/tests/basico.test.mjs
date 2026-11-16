@@ -225,7 +225,8 @@ caso('nós: o proxy embutido de ponta a ponta', async () => {
     r = await no('testar', {});
     assert.equal(r.v.port, 'false'); assert.equal(r.v.value.falharam, 1); assert.equal(r.v.value.testadas, 2);
     r = await no('apontar', { tipo: 'http', destino, nome: 'preso', porta: String(ocupada.address().port), testar: 'nao' });
-    assert.match(r.v.porta_fechada, /está com node/, JSON.stringify(r.v));
+    assert.match(r.v.porta_fechada, /a porta \d+ não abriu/, JSON.stringify(r.v));
+    if (process.platform === 'win32') assert.match(r.v.porta_fechada, /está com node/, 'no Windows diz qual programa ocupa a porta');
     r = await no('status', { exigir: 'inteiro' });
     assert.equal(r.v.port, 'false'); assert.match(r.v.value.problemas.join(), /não abriu/);
     r = await no('remover', { rota: 'preso' });
