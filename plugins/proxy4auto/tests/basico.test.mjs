@@ -185,7 +185,7 @@ function no(node, params = {}, input = null, extra = {}) {
   const fim = new Promise((ok) => c.on('close', (code) => { let v = null; try { v = JSON.parse(out); } catch {} ok({ code, v, err: err.trim() }); }));
   c.stdin.end(JSON.stringify({ node, params, input, data: DADOS, ...(extra.ports ? { ports: extra.ports } : {}) }));
   const linhas = () => out.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return { lixo: l }; } });
-  return extra.segura ? { processo: c, fim, linhas } : fim;
+  return extra.segura ? { processo: c, fim, linhas, erro: () => err.trim() } : fim;
 }
 const noAr = async () => (await no('status', {})).v.port === 'true';
 async function ate(cond, segundos, oQue) { for (let i = 0; i < segundos * 5; i++) { if (await cond()) return; await dormir(200); } assert.fail(oQue); }
@@ -304,8 +304,11 @@ caso('nós: o Proxy liga, conta o que acontece em tempo real e sai quando o flux
     assert.ok(hostsLimpo(), 'sem "Gravar no hosts", o hosts não é tocado');
     r = await no('disfarce', { rota: 'cru', caminhos: ['/'] });
     assert.equal(r.v.port, 'false'); assert.ok(r.v.value.vazamentos.length >= 2 && /nó Proxy/.test(r.v.value.dica), 'sem a reescrita, o destino aparece');
-    await no('pedir', { rota: 'cru', caminho: '/quebra' });
-    await ate(() => ligado.linhas().some((l) => l.port === 'erro'), 5, 'o erro do segundo proxy não chegou');
+    r = await no('pedir', { rota: 'cru', caminho: '/quebra' });
+    assert.equal(r.code, 0, r.err); assert.equal(r.v.status, 500);
+    const visto = () => `nó: código ${ligado.processo.exitCode}, erro "${ligado.erro()}", linhas ${JSON.stringify(ligado.linhas().slice(-6))}`;
+    for (let i = 0; i < 50 && !ligado.linhas().some((l) => l.port === 'erro'); i++) await dormir(200);
+    assert.ok(ligado.linhas().some((l) => l.port === 'erro'), 'o erro do segundo proxy não chegou. ' + visto() + ' | tráfego: ' + JSON.stringify((await no('trafego', {})).v?.itens?.slice(0, 3)));
     ls = ligado.linhas();
     assert.deepEqual(ls.filter((l) => l.port).map((l) => l.port), ['erro'], 'só manda evento para saída que tem algo ligado');
     assert.ok(!ls.some((l) => /^200 /.test(l.log || '')) && ls.some((l) => /^500 /.test(l.log || '')), 'registro "só o que deu errado"');
