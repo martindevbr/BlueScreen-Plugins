@@ -1,0 +1,17 @@
+.md-bar { position: absolute; top: 8px; right: 22px; z-index: 20; display: flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.md-bar[hidden], .md-view[hidden] { display: none; }
+.md-btn { background: none; border: 0; color: var(--fg-2); padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+.md-btn:hover { background: var(--hover); }
+.md-btn.md-on { background: var(--accent); color: var(--on-accent); }
+.md-view { position: absolute; inset: 0; z-index: 10; overflow: auto; background: var(--bg); color: var(--fg); }
+.md-body { max-width: 860px; margin: 0 auto; padding: 40px 32px; line-height: 1.6; font-size: 14px; }
+.md-body h1, .md-body h2 { border-bottom: 1px solid var(--line); padding-bottom: .3em; }
+.md-body a { color: var(--accent-2); }
+.md-body code { background: var(--panel-2); padding: .1em .35em; border-radius: 4px; font-family: monospace; font-size: .92em; }
+.md-body pre { background: var(--panel-2); padding: 12px; border-radius: 6px; overflow: auto; }
+.md-body pre code { background: none; padding: 0; }
+.md-body blockquote { margin: 0; padding: 0 1em; border-left: 3px solid var(--line-2); color: var(--fg-2); }
+.md-body table { border-collapse: collapse; }
+.md-body th, .md-body td { border: 1px solid var(--line); padding: 4px 10px; }
+.md-body img { max-width: 100%; }
+.md-body hr { border: 0; border-top: 1px solid var(--line); }

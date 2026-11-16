@@ -1,0 +1,17 @@
+{
+  "id": "markdown-preview",
+  "name": "Markdown Preview",
+  "description": "Arquivos .md abrem já formatados, com um botão Visualizar/Editar no canto do editor (Ctrl+Alt+M). Imagens e links relativos ao arquivo funcionam: um link para outro .md abre na IDE.",
+  "version": "0.1.0",
+  "author": "Pizzy-23",
+  "license": "MIT",
+  "category": "produtividade",
+  "keywords": [
+    "markdown",
+    "md",
+    "visualizar",
+    "preview"
+  ],
+  "icon": "icon.svg",
+  "order": 101
+}
