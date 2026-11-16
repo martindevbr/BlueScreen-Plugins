@@ -4,7 +4,7 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 0.5.0 |
+| **Versão** | 0.5.1 |
 | **Licença** | MIT |
 | **Categoria** | Desenvolvimento |
 | **Precisa de** | BlueScreen 2.1.33 ou mais novo · Node.js 18+ |
@@ -95,6 +95,10 @@ Os testes rodam os nós como o Automator os roda (o nó Proxy segurando o fluxo 
 Feito por Martin Hartfelder. Licença MIT (veja o campo `license` do `plugin.json`).
 
 ## Histórico de versões
+
+### 0.5.1
+
+- Corrigido: uma requisição que passava logo depois de o proxy ligar podia ficar de fora do registro e das saídas.
 
 ### 0.5.0
 

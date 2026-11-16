@@ -55,6 +55,7 @@ const erro = (tag, ...a) => { console.error(`${hora()} [${tag}] ERRO:`, ...a); r
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ------------------------------------------------------------------ eventos (para o painel)
+let ordem = 0;         // número de ordem de cada registro
 const registros = [];          // últimas linhas de log/requisições
 const ouvintes  = new Set();   // respostas SSE abertas no painel
 /** @type {Map<string, {total:number, erros:number, status:number|null, ms:number|null, t:number|null}>} */
@@ -66,7 +67,7 @@ function emitir(evento, dados) {
 }
 
 function registrar(tipo, tag, texto, extra) {
-  const r = { t: Date.now(), tipo, tag, texto, ...extra };
+  const r = { n: ++ordem, t: Date.now(), tipo, tag, texto, ...extra }; // n: a ordem, para quem acompanha não perder nem repetir
   registros.push(r);
   if (registros.length > 1000) registros.shift();
   emitir('log', r);

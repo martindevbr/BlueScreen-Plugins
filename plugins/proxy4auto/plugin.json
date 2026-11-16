@@ -2,7 +2,7 @@
   "id": "proxy4auto",
   "name": "Proxy4Auto",
   "description": "Proxy reverso local embutido, num nó só do Automator: põe as rotas no nó Proxy e executa. Ele vive enquanto o fluxo roda, mostra o registro ao vivo e dispara os nós ligados nele a cada requisição ou erro. Aponta nomes locais para serviços da internet e apaga os rastros do destino.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": "Martin Hartfelder",
   "license": "MIT",
   "category": "desenvolvimento",

@@ -289,7 +289,10 @@ const NOS = {
 
     // tempo real: o motor conta cada requisição e cada problema pela porta de controle (eventos do servidor)
     const mostrar = p.registro || 'tudo';
+    let visto = est.log.length ? est.log[est.log.length - 1].n : 0; // até aqui o registro já foi contado acima
     const evento = (r) => {
+      if (!(r.n > visto)) return; // já visto (o que chega pela escuta e pela recuperação pode se repetir)
+      visto = r.n;
       if (r.tipo === 'req') {
         const rota = porId.get(r.rota), falhou = !r.status || r.status >= 500;
         total++; if (falhou) erros++;
@@ -305,12 +308,16 @@ const NOS = {
     for (;;) {
       await new Promise((fim) => {
         const req = http.get(cfg.painel + '/api/eventos', (res) => {
+          // o que aconteceu entre ligar e começar a escutar (ou durante uma queda da escuta) vem do registro do motor
+          // (os eventos que chegam enquanto isso esperam na fila, para a ordem não se perder)
+          let fila = [];
+          noAr(cfg).then((e) => { for (const r of (e && e.log) || []) evento(r); for (const r of fila) evento(r); fila = null; });
           let resto = '';
           res.setEncoding('utf8');
           res.on('data', (c) => {
             resto += c;
             const blocos = resto.split('\n\n'); resto = blocos.pop();
-            for (const b of blocos) { const m = b.match(/^event: log\ndata: (.*)$/m); if (m) { try { evento(JSON.parse(m[1])); } catch {} } }
+            for (const b of blocos) { const m = b.match(/^event: log\ndata: (.*)$/m); if (m) { try { const r = JSON.parse(m[1]); if (fila) fila.push(r); else evento(r); } catch {} } }
           });
           res.on('end', fim); res.on('error', fim);
         });
