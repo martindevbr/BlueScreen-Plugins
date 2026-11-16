@@ -1,0 +1,18 @@
+{
+  "id": "env-checker",
+  "name": "Env Checker",
+  "description": "Mostra os .env do projeto com os valores escondidos, compara com o .env.example (o que falta, o que sobra), avisa chave repetida, segredo em arquivo de exemplo e .env sem .gitignore ou já commitado no git. Gera o .env.example só com os nomes e acrescenta o .env no .gitignore.",
+  "version": "0.1.0",
+  "author": "Pizzy-23",
+  "license": "MIT",
+  "category": "qualidade",
+  "keywords": [
+    "env",
+    "dotenv",
+    "segredos",
+    "gitignore",
+    "variáveis"
+  ],
+  "icon": "icon.svg",
+  "order": 116
+}
