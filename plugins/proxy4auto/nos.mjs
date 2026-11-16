@@ -290,7 +290,10 @@ const NOS = {
     // tempo real: o motor conta cada requisição e cada problema pela porta de controle (eventos do servidor)
     const mostrar = p.registro || 'tudo';
     let visto = est.log.length ? est.log[est.log.length - 1].n : 0; // até aqui o registro já foi contado acima
+    const depurar = process.env.PROXY4AUTO_DEPURAR ? (s) => log('[escuta] ' + s) : () => {};
+    depurar(`começa com visto=${visto}, ${est.log.length} registros`);
     const evento = (r) => {
+      depurar(`registro n=${r.n} tipo=${r.tipo} visto=${visto}`);
       if (!(r.n > visto)) return; // já visto (o que chega pela escuta e pela recuperação pode se repetir)
       visto = r.n;
       if (r.tipo === 'req') {
@@ -311,7 +314,8 @@ const NOS = {
           // o que aconteceu entre ligar e começar a escutar (ou durante uma queda da escuta) vem do registro do motor
           // (os eventos que chegam enquanto isso esperam na fila, para a ordem não se perder)
           let fila = [];
-          noAr(cfg).then((e) => { for (const r of (e && e.log) || []) evento(r); for (const r of fila) evento(r); fila = null; });
+          depurar(`conectada (status ${res.statusCode})`);
+          noAr(cfg).then((e) => { depurar(`recuperação: ${e ? e.log.length : 'sem resposta'} registros, fila ${fila.length}`); for (const r of (e && e.log) || []) evento(r); for (const r of fila) evento(r); fila = null; });
           let resto = '';
           res.setEncoding('utf8');
           res.on('data', (c) => {
@@ -319,9 +323,9 @@ const NOS = {
             const blocos = resto.split('\n\n'); resto = blocos.pop();
             for (const b of blocos) { const m = b.match(/^event: log\ndata: (.*)$/m); if (m) { try { const r = JSON.parse(m[1]); if (fila) fila.push(r); else evento(r); } catch {} } }
           });
-          res.on('end', fim); res.on('error', fim);
+          res.on('end', () => { depurar('terminou'); fim(); }); res.on('error', (e) => { depurar('erro ' + e.message); fim(); });
         });
-        req.on('error', fim);
+        req.on('error', (e) => { depurar('não conectou: ' + e.message); fim(); });
       });
       await esperar(500);
       if (!(await noAr(cfg))) { await esperar(1500); if (!(await noAr(cfg))) { const l = fimDoLog(cfg); throw new Falha(`O proxy parou sozinho.${l ? ' O que ele disse: ' + l : ''}`); } }
