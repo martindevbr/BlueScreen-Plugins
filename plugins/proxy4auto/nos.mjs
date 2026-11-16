@@ -289,7 +289,8 @@ const NOS = {
 
     // tempo real: o motor conta cada requisição e cada problema pela porta de controle (eventos do servidor)
     const mostrar = p.registro || 'tudo';
-    let visto = est.log.length ? est.log[est.log.length - 1].n : 0; // até aqui o registro já foi contado acima
+    // nada foi contado ainda: o que passou enquanto o proxy terminava de ligar também entra, pela recuperação
+    let visto = 0;
     const depurar = process.env.PROXY4AUTO_DEPURAR ? (s) => log('[escuta] ' + s) : () => {};
     depurar(`começa com visto=${visto}, ${est.log.length} registros`);
     const evento = (r) => {

@@ -175,7 +175,7 @@ const portaLivre = async () => { const s = await escutar(() => {}); const p = s.
 const dormir = (ms) => new Promise((ok) => setTimeout(ok, ms));
 const DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'proxy4auto-teste-'));
 const HOSTS = path.join(DADOS, 'hosts-falso');
-const ENV = { ...process.env, PROXY4AUTO_HOSTS: HOSTS, PROXY4AUTO_DEPURAR: '1' };
+const ENV = { ...process.env, PROXY4AUTO_HOSTS: HOSTS };
 // roda um nó como o Automator roda. `extra.segura`: devolve o processo sem esperar (o nó Proxy fica em execução) e
 // `linhas()` com o que ele já mandou (uma linha de JSON por vez: registro, estado e eventos)
 function no(node, params = {}, input = null, extra = {}) {
@@ -306,7 +306,7 @@ caso('nós: o Proxy liga, conta o que acontece em tempo real e sai quando o flux
     assert.equal(r.v.port, 'false'); assert.ok(r.v.value.vazamentos.length >= 2 && /nó Proxy/.test(r.v.value.dica), 'sem a reescrita, o destino aparece');
     r = await no('pedir', { rota: 'cru', caminho: '/quebra' });
     assert.equal(r.code, 0, r.err); assert.equal(r.v.status, 500);
-    const visto = () => `nó: código ${ligado.processo.exitCode}, erro "${ligado.erro()}", linhas ${JSON.stringify(ligado.linhas().filter((l) => /escuta/.test(l.log || '')).map((l) => l.log))}`;
+    const visto = () => `nó: código ${ligado.processo.exitCode}, erro "${ligado.erro()}", linhas ${JSON.stringify(ligado.linhas().slice(-8))}`;
     for (let i = 0; i < 50 && !ligado.linhas().some((l) => l.port === 'erro'); i++) await dormir(200);
     assert.ok(ligado.linhas().some((l) => l.port === 'erro'), 'o erro do segundo proxy não chegou. ' + visto() + ' | tráfego: ' + JSON.stringify((await no('trafego', {})).v?.itens?.slice(0, 3)));
     ls = ligado.linhas();

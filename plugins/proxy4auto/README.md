@@ -4,7 +4,7 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 0.5.1 |
+| **Versão** | 0.5.2 |
 | **Licença** | MIT |
 | **Categoria** | Desenvolvimento |
 | **Precisa de** | BlueScreen 2.1.33 ou mais novo · Node.js 18+ |
@@ -96,9 +96,13 @@ Feito por Martin Hartfelder. Licença MIT (veja o campo `license` do `plugin.jso
 
 ## Histórico de versões
 
+### 0.5.2
+
+- Corrigido de vez: o que passa enquanto o proxy termina de ligar entra no registro e nas saídas (a 0.5.1 ainda perdia os primeiros instantes).
+
 ### 0.5.1
 
-- Corrigido: uma requisição que passava logo depois de o proxy ligar podia ficar de fora do registro e das saídas.
+- Uma requisição que passava logo depois de o proxy ligar podia ficar de fora do registro e das saídas.
 
 ### 0.5.0
 
