@@ -1,8 +1,8 @@
 {
   "id": "proxy4auto",
   "name": "Proxy4Auto",
-  "description": "Nós do Automator para o localhost-proxy: liga e desliga o proxy, aponta nomes locais para serviços da internet, testa destinos, faz requisições pelo nome local, confere se o disfarce vaza o destino e acompanha o tráfego.",
-  "version": "0.2.0",
+  "description": "Proxy reverso local embutido, comandado por nós do Automator: aponta nomes locais para serviços da internet, apaga os rastros do destino, testa, compara com o original, faz requisições pelo nome local e acompanha o tráfego. Não precisa de nenhum programa de fora.",
+  "version": "0.3.0",
   "author": "Martin Hartfelder",
   "license": "MIT",
   "category": "desenvolvimento",
@@ -12,7 +12,7 @@
   "order": 80,
   "server": "server.mjs",
   "settings": [
-    { "key": "painel", "label": "Endereço do painel do proxy", "default": "http://127.0.0.1:7070", "help": "Onde o painel do localhost-proxy responde (porta_painel do config.txt). Só neste PC." },
-    { "key": "pasta", "label": "Pasta do proxy", "default": "", "help": "A pasta com o proxy.js, para Ligar o proxy. Vazio: usa a do proxy que estiver rodando." }
+    { "key": "ligar_sozinho", "label": "Ligar o proxy sozinho", "type": "bool", "default": true, "help": "Ligado, qualquer nó que precise do proxy o liga (sem administrador) e ele sai quando o BlueScreen fecha. Desligado, o fluxo precisa do nó Ligar o proxy." },
+    { "key": "porta", "label": "Porta de controle", "type": "number", "default": 7170, "help": "A porta de 127.0.0.1 por onde os nós mandam no proxy. Só troque se outro programa usar a 7170. Vale na próxima vez que o proxy ligar." }
   ]
 }

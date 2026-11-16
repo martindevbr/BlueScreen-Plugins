@@ -4,7 +4,7 @@
       "type": "status",
       "name": "Proxy no ar?",
       "category": "Proxy",
-      "desc": "Segue por sim quando o localhost-proxy está respondendo e por não quando está desligado. Diz também o que não subiu.",
+      "desc": "Segue por sim quando o proxy está ligado e por não quando está desligado. Diz o que não subiu, quem está ocupando a porta e quais nomes locais ainda não chegam neste PC. Não liga o proxy.",
       "keywords": [
         "status",
         "monitorar",
@@ -22,19 +22,37 @@
         "false"
       ],
       "expects": "Qualquer dado (não é usado).",
-      "returns": "Se está no ar, a porta HTTP, DNS, hosts, quantas rotas, portas que não abriram, linhas recusadas do apontamentos.txt e a lista de problemas.",
+      "returns": "Se está no ar, há quanto tempo, se roda como administrador, portas, DNS, hosts, quantas rotas, as portas que não abriram (e com quem estão), os nomes que não resolvem, problemas e avisos.",
       "sample": {
         "no_ar": true,
-        "painel": "http://127.0.0.1:7070",
+        "pid": 12776,
+        "ligado_ha_s": 340,
+        "administrador": false,
+        "fica_ligado": "até fechar o BlueScreen",
+        "porta_controle": 7170,
         "porta_http": 80,
-        "dns": "ok",
-        "hosts": "ok",
+        "dns": "desativado",
+        "hosts": "sem-permissao",
         "reescrever_links": true,
+        "rede": false,
         "rotas_http": 2,
         "rotas_tcp": 1,
         "linhas_invalidas": [],
-        "portas_sem_escutar": [],
-        "problemas": []
+        "portas_sem_escutar": [
+          {
+            "porta": 80,
+            "tipo": "http",
+            "erro": "EADDRINUSE",
+            "ocupada_por": "nginx (PID 4312)"
+          }
+        ],
+        "nomes_sem_resolver": [
+          "localhost-api"
+        ],
+        "problemas": [
+          "a porta 80 não abriu: está com nginx (PID 4312). O proxy tenta de novo sozinho a cada 5 s"
+        ],
+        "avisos": []
       },
       "params": {
         "exigir": "no_ar"
@@ -47,11 +65,15 @@
           "options": [
             {
               "value": "no_ar",
-              "label": "O proxy responde"
+              "label": "O proxy está ligado"
             },
             {
               "value": "inteiro",
-              "label": "Responde e está tudo de pé (portas, DNS, rotas válidas)"
+              "label": "Ligado e tudo de pé (portas, DNS, rotas válidas)"
+            },
+            {
+              "value": "nomes",
+              "label": "Tudo de pé e os nomes locais chegam neste PC"
             }
           ]
         }
@@ -61,14 +83,14 @@
         "args": [
           "nos.mjs"
         ],
-        "timeout": 30000
+        "timeout": 60000
       }
     },
     {
       "type": "ligar",
       "name": "Ligar o proxy",
       "category": "Proxy",
-      "desc": "Liga o localhost-proxy e espera o painel responder. Se ele já estiver no ar, só confirma.",
+      "desc": "Liga o proxy embutido e espera ele responder. Se já estiver ligado, só confirma; pedindo administrador com ele ligado sem, religa como administrador.",
       "keywords": [
         "iniciar",
         "start",
@@ -78,18 +100,21 @@
       "takes": "any",
       "gives": "object",
       "expects": "Qualquer dado (não é usado).",
-      "returns": "Se ligou ou já estava ligado, a pasta, o modo, quantas rotas e avisos (portas ocupadas, hosts sem administrador).",
+      "returns": "Se ligou ou já estava ligado, o modo, o PID, as portas, até quando fica ligado, quantas rotas e os avisos (porta ocupada e por quem, hosts sem administrador).",
       "sample": {
         "ligado": true,
         "ja_estava": false,
-        "painel": "http://127.0.0.1:7070",
-        "pasta": "C:\\proxy-server",
         "modo": "normal",
+        "pid": 12776,
+        "porta_controle": 7170,
+        "porta_http": 80,
+        "fica_ligado": "até fechar o BlueScreen",
         "rotas": 3,
         "avisos": []
       },
       "params": {
         "modo": "normal",
+        "fica": "bluescreen",
         "esperar_s": 30
       },
       "fields": [
@@ -100,14 +125,29 @@
           "options": [
             {
               "value": "normal",
-              "label": "Normal (sem mexer no hosts se não tiver permissão)"
+              "label": "Normal (sem pergunta do Windows)"
             },
             {
               "value": "admin",
-              "label": "Como administrador (o Windows pergunta; grava o hosts)"
+              "label": "Como administrador (o Windows pergunta; grava o hosts sozinho)"
             }
           ],
-          "help": "Sem administrador os nomes locais resolvem pelo DNS do proxy. Como administrador ele também escreve no hosts do Windows: o próprio BlueScreen pede a permissão, sem janela de console."
+          "help": "Normal já atende a Requisição pelo proxy e os testes. Para os nomes locais chegarem em outros programas, ligue como administrador ou use o nó Permissão de administrador com \"Gravar os nomes das rotas no hosts\"."
+        },
+        {
+          "name": "fica",
+          "label": "Fica ligado",
+          "kind": "select",
+          "options": [
+            {
+              "value": "bluescreen",
+              "label": "Até fechar o BlueScreen"
+            },
+            {
+              "value": "sempre",
+              "label": "Até o nó Desligar o proxy"
+            }
+          ]
         },
         {
           "name": "esperar_s",
@@ -129,7 +169,7 @@
       "type": "desligar",
       "name": "Desligar o proxy",
       "category": "Proxy",
-      "desc": "Encerra o localhost-proxy que está escutando no painel. Confere antes que o processo é mesmo o proxy.js; se ele roda como administrador, o Windows pede a permissão para encerrar.",
+      "desc": "Desliga o proxy embutido. Ele sai por conta própria e tira os nomes dele do hosts; se faltar permissão para isso, o nó limpa (o Windows pergunta).",
       "keywords": [
         "parar",
         "stop",
@@ -139,33 +179,32 @@
       "takes": "any",
       "gives": "object",
       "expects": "Qualquer dado (não é usado).",
-      "returns": "Se desligou ou já estava desligado, o PID encerrado, se precisou de administrador e o que foi feito com o hosts.",
+      "returns": "Se desligou ou já estava desligado, o PID, o que foi feito com o hosts e um aviso se o DNS do Windows ainda apontar para o proxy.",
       "sample": {
         "desligado": true,
         "ja_estava": false,
         "pid": 12776,
-        "como_administrador": true,
         "hosts": "bloco do proxy removido"
       },
       "params": {
-        "hosts": "manter"
+        "hosts": "limpar"
       },
       "fields": [
         {
           "name": "hosts",
-          "label": "Arquivo hosts",
+          "label": "Nomes no hosts",
           "kind": "select",
           "options": [
             {
-              "value": "manter",
-              "label": "Deixar como está"
+              "value": "limpar",
+              "label": "Tirar (o Windows só pergunta se precisar)"
             },
             {
-              "value": "limpar",
-              "label": "Limpar o bloco do proxy (o Windows pergunta)"
+              "value": "manter",
+              "label": "Deixar como está"
             }
           ],
-          "help": "Encerrado de fora, o proxy não tira o bloco dele do hosts, e os nomes locais ficam apontando para 127.0.0.1 sem ninguém atender."
+          "help": "Com o proxy desligado, um nome que continua no hosts aponta para 127.0.0.1 sem ninguém atender."
         }
       ],
       "run": {
@@ -173,14 +212,14 @@
         "args": [
           "nos.mjs"
         ],
-        "timeout": 60000
+        "timeout": 150000
       }
     },
     {
       "type": "admin",
       "name": "Permissão de administrador",
       "category": "Proxy",
-      "desc": "Ao executar, pede a permissão de administrador do Windows. Aceita, faz a ação escolhida e segue por sim; recusada, segue por não.",
+      "desc": "Ao executar, pede a permissão de administrador do Windows. Aceita, faz a ação escolhida e segue por sim; recusada, segue por não. As ações de hosts só perguntam se faltar permissão.",
       "keywords": [
         "administrador",
         "elevar",
@@ -202,15 +241,9 @@
       "expects": "Qualquer dado. Em Rodar um programa, se o campo Programa ficar vazio, usa o texto que chega.",
       "returns": "A ação, se a permissão foi dada, o resultado e, nas ações de DNS, cada adaptador com o DNS de antes ou o de agora.",
       "sample": {
-        "acao": "dns_proxy",
+        "acao": "hosts_gravar",
         "permitido": true,
-        "resultado": "o Windows agora resolve nomes pelo proxy",
-        "adaptadores": [
-          {
-            "adaptador": "Ethernet",
-            "antes": "192.168.0.1"
-          }
-        ]
+        "resultado": "nomes gravados: localhost-api, localhost-site"
       },
       "params": {
         "acao": "nada",
@@ -230,8 +263,12 @@
               "label": "Só confirmar (seguir por sim)"
             },
             {
+              "value": "hosts_gravar",
+              "label": "Gravar os nomes das rotas no hosts"
+            },
+            {
               "value": "hosts",
-              "label": "Limpar o bloco do proxy no hosts"
+              "label": "Tirar os nomes do proxy do hosts"
             },
             {
               "value": "dns_proxy",
@@ -246,7 +283,7 @@
               "label": "Rodar um programa como administrador"
             }
           ],
-          "help": "DNS pelo proxy: os adaptadores ligados passam a usar 127.0.0.1, guardando o DNS de antes para Restaurar. Só roda com o DNS do proxy no ar, senão a internet do PC para."
+          "help": "Gravar os nomes: o proxy segue sem administrador e os nomes locais passam a chegar em qualquer programa. DNS pelo proxy: liga o DNS local se preciso e põe os adaptadores em 127.0.0.1, guardando o DNS de antes para Restaurar; se o DNS do proxy não subir, não mexe no Windows."
         },
         {
           "name": "motivo",
@@ -369,7 +406,7 @@
       "type": "apontar",
       "name": "Apontar um nome",
       "category": "Proxy",
-      "desc": "Cria ou atualiza uma rota: um nome local (http://localhost-api) que leva a um serviço da internet, ou uma porta TCP local que leva a um banco remoto.",
+      "desc": "Cria ou atualiza uma rota: um nome local (http://localhost-api) que leva a um serviço da internet, ou uma porta TCP local que leva a um banco remoto. Diz se o nome já chega neste PC e se a porta abriu.",
       "keywords": [
         "criar rota",
         "adicionar",
@@ -381,7 +418,7 @@
       "takes": "any",
       "gives": "object",
       "expects": "O destino. Se o campo Destino ficar vazio, usa o texto que chega (ou o campo url de um objeto).",
-      "returns": "Se criou ou mudou, a rota, o endereço local e, com Testar, se o destino respondeu.",
+      "returns": "Se criou ou mudou, a rota, o endereço local, se o nome resolve neste PC (e a dica quando não), a porta que não abriu e, com Testar, se o destino respondeu.",
       "sample": {
         "criada": true,
         "mudou": true,
@@ -394,6 +431,7 @@
           "destino": "https://api.meucliente.com.br"
         },
         "local": "http://localhost-api-meucliente",
+        "resolve": true,
         "teste": {
           "ok": true,
           "status": 200,
@@ -406,6 +444,7 @@
         "nome": "",
         "porta": "",
         "se_existir": "falhar",
+        "hosts": "avisar",
         "testar": "sim"
       },
       "fields": [
@@ -447,7 +486,7 @@
           "name": "porta",
           "label": "Porta local",
           "kind": "text",
-          "placeholder": "Vazio: a porta_http do proxy",
+          "placeholder": "Vazio: a porta HTTP do proxy",
           "help": "No HTTP, outra porta faz o proxy escutar nela também (http://nome:porta). No TCP é obrigatória."
         },
         {
@@ -464,6 +503,27 @@
               "label": "Trocar o destino"
             }
           ]
+        },
+        {
+          "name": "hosts",
+          "label": "Se o nome não chegar neste PC",
+          "kind": "select",
+          "show": {
+            "tipo": [
+              "http"
+            ]
+          },
+          "options": [
+            {
+              "value": "avisar",
+              "label": "Só avisar no resultado"
+            },
+            {
+              "value": "gravar",
+              "label": "Gravar no hosts (o Windows pergunta)"
+            }
+          ],
+          "help": "Com o proxy ligado como administrador o hosts é gravado sozinho e nada é perguntado."
         },
         {
           "name": "testar",
@@ -493,7 +553,7 @@
       "type": "remover",
       "name": "Remover rota",
       "category": "Proxy",
-      "desc": "Tira uma rota do proxy (a linha sai do apontamentos.txt, os comentários ficam).",
+      "desc": "Tira uma rota do proxy.",
       "keywords": [
         "apagar",
         "excluir",
@@ -502,7 +562,7 @@
       "takes": "any",
       "gives": "object",
       "expects": "A rota. Se o campo ficar vazio, usa o que chega (texto ou a saída de Apontar um nome).",
-      "returns": "Se removeu e qual rota era.",
+      "returns": "Se removeu, qual rota era e quantas restam.",
       "sample": {
         "removida": true,
         "rota": {
@@ -512,7 +572,8 @@
           "porta": 80,
           "local": "http://localhost-api",
           "destino": "https://api.exemplo.com"
-        }
+        },
+        "restam": 2
       },
       "params": {
         "rota": "",
@@ -573,11 +634,12 @@
         "false"
       ],
       "expects": "Uma rota, ou nada para testar todas.",
-      "returns": "Quantas foram testadas e quantas falharam, e cada uma com ok, status, tempo e o erro.",
+      "returns": "Quantas foram testadas e quantas falharam, o tempo da mais lenta, e cada uma com ok, status, tempo e o erro.",
       "sample": {
         "todas_ok": false,
         "testadas": 2,
         "falharam": 1,
+        "mais_lento_ms": 6001,
         "resultados": [
           {
             "id": "localhost-api:80",
@@ -619,6 +681,75 @@
       }
     },
     {
+      "type": "esperar",
+      "name": "Esperar o destino",
+      "category": "Proxy",
+      "desc": "Fica testando o destino de uma rota até ele responder ou o tempo acabar. Segue por sim quando respondeu. Bom depois de um deploy ou de conectar uma VPN.",
+      "keywords": [
+        "aguardar",
+        "deploy",
+        "subir",
+        "pronto",
+        "retry",
+        "tentar de novo"
+      ],
+      "takes": "any",
+      "gives": "object",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "true",
+        "false"
+      ],
+      "expects": "A rota. Se o campo ficar vazio, usa o que chega.",
+      "returns": "Se respondeu, quantas tentativas, quanto esperou, o status e o erro da última tentativa.",
+      "sample": {
+        "respondeu": true,
+        "rota": "localhost-api:80",
+        "local": "http://localhost-api",
+        "destino": "https://api.exemplo.com",
+        "tentativas": 4,
+        "esperou_s": 16,
+        "status": 200
+      },
+      "params": {
+        "rota": "",
+        "tempo_s": 120,
+        "intervalo_s": 5
+      },
+      "fields": [
+        {
+          "name": "rota",
+          "label": "Rota",
+          "kind": "text",
+          "choicesFrom": "proxy4auto/rotas",
+          "placeholder": "Vazio: o que chega do nó anterior"
+        },
+        {
+          "name": "tempo_s",
+          "label": "Esperar até (segundos)",
+          "kind": "number",
+          "min": 1,
+          "max": 3600
+        },
+        {
+          "name": "intervalo_s",
+          "label": "Tentar a cada (segundos)",
+          "kind": "number",
+          "min": 1,
+          "max": 300
+        }
+      ],
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 3700000
+      }
+    },
+    {
       "type": "pedir",
       "name": "Requisição pelo proxy",
       "category": "Proxy",
@@ -634,7 +765,7 @@
       "takes": "any",
       "gives": "object",
       "expects": "A rota ou uma URL (local ou do site original). Se o campo ficar vazio, usa o que chega.",
-      "returns": "Status, tempo, a URL local usada, os cabeçalhos e o corpo (JSON já lido, quando for JSON).",
+      "returns": "Status, tempo, a URL local usada, os redirecionamentos seguidos, os cabeçalhos e o corpo (JSON já lido, quando for JSON).",
       "sample": {
         "ok": true,
         "status": 200,
@@ -655,7 +786,8 @@
         "cabecalhos": {},
         "corpo": "",
         "tempo_s": 30,
-        "falhar_status": "nao"
+        "falhar_status": "nao",
+        "seguir": "nao"
       },
       "fields": [
         {
@@ -728,6 +860,22 @@
           "kind": "number",
           "min": 1,
           "max": 300
+        },
+        {
+          "name": "seguir",
+          "label": "Redirecionamentos",
+          "kind": "select",
+          "options": [
+            {
+              "value": "nao",
+              "label": "Devolver como veio (301, 302…)"
+            },
+            {
+              "value": "sim",
+              "label": "Seguir enquanto for rota do proxy"
+            }
+          ],
+          "help": "O proxy devolve o redirecionamento já com o nome local. Seguindo, o nó para se ele sair das rotas do proxy."
         },
         {
           "name": "falhar_status",
@@ -813,6 +961,98 @@
           "label": "Páginas",
           "kind": "lines",
           "help": "Um caminho por linha (até 20), como / e /api/status."
+        }
+      ],
+      "run": {
+        "program": "node",
+        "args": [
+          "nos.mjs"
+        ],
+        "timeout": 600000
+      }
+    },
+    {
+      "type": "comparar",
+      "name": "Comparar com o original",
+      "category": "Proxy",
+      "desc": "Abre as mesmas páginas pelo proxy e direto no destino e compara status, tipo e tamanho. Segue por sim quando o proxy entrega o que o site entrega; mostra também quanto tempo o proxy acrescenta.",
+      "keywords": [
+        "diferença",
+        "diff",
+        "quebrou",
+        "validar",
+        "latência",
+        "transparente"
+      ],
+      "takes": "any",
+      "gives": "object",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "true",
+        "false"
+      ],
+      "expects": "A rota. Se o campo ficar vazio, usa o que chega.",
+      "returns": "Se está igual, cada página com o status, tempo, tamanho e tipo dos dois lados e as diferenças, e o custo médio do proxy em milissegundos.",
+      "sample": {
+        "igual": false,
+        "rota": "localhost-api:80",
+        "local": "http://localhost-api",
+        "destino": "https://api.exemplo.com",
+        "paginas": [
+          {
+            "caminho": "/",
+            "igual": false,
+            "proxy": {
+              "status": 502,
+              "ms": 40,
+              "bytes": 71,
+              "tipo": "text/plain"
+            },
+            "direto": {
+              "status": 200,
+              "ms": 180,
+              "bytes": 5120,
+              "tipo": "text/html"
+            },
+            "custo_ms": -140,
+            "diferencas": [
+              "status 502 pelo proxy e 200 direto"
+            ]
+          }
+        ],
+        "diferentes": 1,
+        "custo_medio_ms": -140
+      },
+      "params": {
+        "rota": "",
+        "caminhos": [
+          "/"
+        ],
+        "folga": 15
+      },
+      "fields": [
+        {
+          "name": "rota",
+          "label": "Rota",
+          "kind": "text",
+          "choicesFrom": "proxy4auto/rotas?tipo=http",
+          "placeholder": "Vazio: o que chega do nó anterior"
+        },
+        {
+          "name": "caminhos",
+          "label": "Páginas",
+          "kind": "lines",
+          "help": "Um caminho por linha (até 10), como / e /api/status."
+        },
+        {
+          "name": "folga",
+          "label": "Folga no tamanho (%)",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "help": "A reescrita de links muda um pouco o tamanho. Acima desta folga conta como diferença."
         }
       ],
       "run": {
@@ -910,7 +1150,7 @@
       "type": "ajustar",
       "name": "Ajustar o proxy",
       "category": "Proxy",
-      "desc": "Liga ou desliga DNS local, hosts, reescrita de links e log detalhado, ou troca portas e o DNS de fora. Grava no config.txt e o proxy recarrega.",
+      "desc": "Liga ou desliga reescrita de links, DNS local, hosts, acesso pela rede e log detalhado, ou troca portas e o DNS de fora. O proxy recarrega na hora.",
       "keywords": [
         "config",
         "configurar",
@@ -921,19 +1161,21 @@
       "takes": "any",
       "gives": "object",
       "expects": "Qualquer dado. Dá para usar {{input}} no valor.",
-      "returns": "O ajuste, o valor de antes, o de depois e a configuração inteira.",
+      "returns": "O ajuste, o valor de antes, o de depois, se mudou, a configuração inteira e avisos (porta que não abriu, DNS que não subiu).",
       "sample": {
         "ajuste": "reescrever_links",
         "antes": false,
         "depois": true,
+        "mudou": true,
         "config": {
           "porta_http": 80,
           "porta_dns": 53,
           "dns_upstream": "8.8.8.8",
-          "dns": true,
+          "dns": false,
           "hosts": true,
           "reescrever_links": true,
-          "log_detalhado": false
+          "log_detalhado": false,
+          "rede": false
         }
       },
       "params": {
@@ -958,6 +1200,10 @@
             {
               "value": "hosts",
               "label": "Arquivo hosts"
+            },
+            {
+              "value": "rede",
+              "label": "Aceitar outros aparelhos da rede"
             },
             {
               "value": "log_detalhado",
@@ -996,7 +1242,8 @@
               "reescrever_links",
               "dns",
               "hosts",
-              "log_detalhado"
+              "log_detalhado",
+              "rede"
             ]
           }
         },
@@ -1037,7 +1284,7 @@
       "takes": "any",
       "gives": "object",
       "expects": "Qualquer dado, ou uma rota para filtrar.",
-      "returns": "Total, erros (5xx e falhas de conexão), não encontrados (4xx), tempo mediano e máximo, e as requisições (a mais nova primeiro).",
+      "returns": "Total, erros (5xx e falhas de conexão), não encontrados (4xx), tempo mediano e máximo, o resumo por rota, as 5 mais lentas e as requisições (a mais nova primeiro).",
       "sample": {
         "total": 12,
         "erros": 1,
@@ -1053,6 +1300,23 @@
             "status": 502,
             "ms": 1830,
             "falhou": false
+          }
+        ],
+        "por_rota": [
+          {
+            "rota": "localhost-api:80",
+            "total": 12,
+            "erros": 1,
+            "ms_maximo": 1830
+          }
+        ],
+        "mais_lentas": [
+          {
+            "rota": "localhost-api:80",
+            "metodo": "GET",
+            "caminho": "/v1/x",
+            "status": 502,
+            "ms": 1830
           }
         ]
       },
@@ -1076,7 +1340,7 @@
           "kind": "number",
           "min": 0,
           "max": 1440,
-          "help": "0: tudo o que o proxy guarda (as últimas 400 linhas do log)."
+          "help": "0: tudo o que o proxy guarda (as últimas 1000 linhas do log)."
         },
         {
           "name": "so_erros",
@@ -1098,7 +1362,7 @@
           "label": "No máximo",
           "kind": "number",
           "min": 1,
-          "max": 400
+          "max": 1000
         }
       ],
       "run": {

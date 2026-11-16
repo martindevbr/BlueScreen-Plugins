@@ -1,28 +1,57 @@
 // Proxy4Auto: a parte que não depende de rede nem de processo (testável sozinha).
-// O localhost-proxy (github.com/martindevbr/proxy-server) põe um serviço da internet atrás de um nome local que
-// resolve para 127.0.0.1 e apaga os rastros do destino (links, cookies, cabeçalhos da Vercel e da Cloudflare).
-// Os nós falam com o painel dele (http://127.0.0.1:7070 por padrão) e, para ligar e desligar, com a pasta dele.
+// O proxy vem embutido no plugin (lib/motor.mjs): põe um serviço da internet atrás de um nome local que resolve para
+// 127.0.0.1 e apaga os rastros do destino (links, cookies, cabeçalhos da Vercel e da Cloudflare).
+// Os nós ligam o motor quando precisam e falam com ele pela porta de controle (127.0.0.1:7170 por padrão).
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const PAINEL_PADRAO = 'http://127.0.0.1:7070';
+export const PORTA_PADRAO = 7170;
 
 // ---------- configurações do plugin ----------
 // os valores salvos (<pasta de dados>/settings.json) por cima dos padrões do plugin.json
 export function configuracoes(pastaDados, pastaPlugin) {
-  const ler = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8').replace(/^﻿/, '')); } catch { return null; } };
+  const ler = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '')); } catch { return null; } };
   const padroes = Object.fromEntries(((ler(path.join(pastaPlugin, 'plugin.json')) || {}).settings || []).map((s) => [s.key, s.default]));
   const salvas = (pastaDados && ler(path.join(pastaDados, 'settings.json'))) || {};
   const c = { ...padroes, ...salvas };
-  return { painel: painelValido(c.painel), pasta: String(c.pasta || '').trim() };
+  const porta = portaValida(c.porta);
+  return {
+    porta, painel: `http://127.0.0.1:${porta}`,
+    ligarSozinho: !(c.ligar_sozinho === false || /^(nao|não|false|0|off)$/i.test(String(c.ligar_sozinho ?? ''))),
+    dados: pastaDados || '',
+    // as rotas e os ajustes do proxy ficam aqui, em texto: config.txt, apontamentos.txt e proxy.log
+    pastaProxy: pastaDados ? path.join(pastaDados, 'proxy') : '',
+  };
 }
-// o painel do proxy só responde no próprio PC: endereço de outra máquina nem é tentado
-export function painelValido(v) {
-  let u;
-  try { u = new URL(String(v || '').trim() || PAINEL_PADRAO); } catch { throw new Error(`Endereço do painel inválido: "${v}". Use algo como ${PAINEL_PADRAO}.`); }
-  if (u.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname)) throw new Error(`O painel do proxy só responde neste PC: use http://127.0.0.1:<porta> (está "${v}").`);
-  return `http://127.0.0.1:${u.port || 80}`;
+export function portaValida(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return PORTA_PADRAO;
+  const n = Number(s);
+  if (!Number.isInteger(n) || n < 1024 || n > 65535) throw new Error(`Porta de controle inválida: "${v}". Use um número de 1024 a 65535 (o padrão é ${PORTA_PADRAO}).`);
+  return n;
 }
+
+// as rotas lidas direto do apontamentos.txt, para o que funciona com o proxy desligado (a lista dos campos)
+export function lerApontamentos(texto, portaHttp = 80) {
+  const rotas = [];
+  String(texto || '').split(/\r?\n/).forEach((l, linha) => {
+    const s = l.trim();
+    if (!s || s.startsWith('#')) return;
+    const p = s.replace(/\s+#.*$/, '').split(/\s+/).filter((x) => !['->', '=>', '='].includes(x));
+    if (p[0].toLowerCase() === 'tcp') {
+      const porta = Number(p[1]);
+      if (porta && /^.+:\d+$/.test(p[2] || '')) rotas.push({ linha, texto: s, tipo: 'tcp', id: `tcp:${porta}`, porta, local: `127.0.0.1:${porta}`, destino: p[2] });
+      return;
+    }
+    const m = p[0].toLowerCase().match(/^([a-z0-9._-]+?)(?::(\d+))?$/);
+    if (!m || !p[1]) return;
+    let destino; try { destino = new URL(/^[a-z]+:\/\//i.test(p[1]) ? p[1] : 'http://' + p[1]).origin; } catch { return; }
+    const porta = m[2] ? Number(m[2]) : portaHttp;
+    rotas.push({ linha, texto: s, tipo: 'http', id: `${m[1]}:${porta}`, nome: m[1], porta, local: 'http://' + m[1] + (porta === 80 ? '' : ':' + porta), destino });
+  });
+  return rotas;
+}
+export const portaHttpDe = (textoConfig) => Number((String(textoConfig || '').match(/^\s*porta_http\s*=\s*(\d+)/m) || [])[1]) || 80;
 
 // ---------- rotas ----------
 // o que a pessoa escreve para escolher uma rota: "localhost-api", "localhost-api:6544", "http://localhost-api:6544/x",
@@ -73,7 +102,7 @@ export function sugerirNome(destino, usados = []) {
   while (usados.includes(final)) final = `${nome}-${i++}`;
   return final;
 }
-// destino no formato que o proxy entende (o mesmo normalizarDestino do proxy.js)
+// destino no formato que o proxy entende (o mesmo normalizarDestino do motor)
 export function normalizarDestino(d) {
   let s = String(d || '').trim();
   if (!s) throw new Error('Informe o destino (ex.: https://api.exemplo.com).');
@@ -135,16 +164,17 @@ export function conferirDisfarce({ status, headers = {}, corpo = '' }, destino) 
 }
 
 // ---------- hosts ----------
-// o bloco que o proxy grava no hosts do Windows (as mesmas marcas do proxy.js), tirado como ele mesmo tira
-const MARCA_INI = '# >>> localhost-proxy (gerado automaticamente, nao edite este bloco)';
-const MARCA_FIM = '# <<< localhost-proxy';
+// o bloco que o proxy grava no hosts do Windows (as mesmas marcas do motor), tirado como ele mesmo tira
+const MARCA_INI = '# >>> proxy4auto (gerado automaticamente, nao edite este bloco)';
+const MARCA_FIM = '# <<< proxy4auto';
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export const nomesNoHosts = (texto) => { const m = String(texto).match(new RegExp(`${esc(MARCA_INI)}([\\s\\S]*?)${esc(MARCA_FIM)}`)); return m ? m[1].split(/\r?\n/).map((l) => l.trim().split(/\s+/)[1]).filter(Boolean) : []; };
 export function semBlocoDoProxy(texto) {
   return String(texto).replace(new RegExp(`\\r?\\n?${esc(MARCA_INI)}[\\s\\S]*?${esc(MARCA_FIM)}\\r?\\n?`), '\r\n');
 }
 
 // ---------- tráfego ----------
-// linhas de requisição do log do painel ("nome GET /x 200 34ms") viram objetos; filtro por rota, erro e janela
+// linhas de requisição do log do proxy ("nome GET /x 200 34ms") viram objetos; filtro por rota, erro e janela
 export function trafego(log, { rota = null, soErros = false, minutos = 0, quantas = 50, agora = Date.now() } = {}) {
   const desde = minutos > 0 ? agora - minutos * 60000 : 0;
   const itens = (log || []).filter((r) => r && r.tipo === 'req' && r.t >= desde && (!rota || r.rota === rota) && (!soErros || !r.status || r.status >= 400))
@@ -157,6 +187,8 @@ export function trafego(log, { rota = null, soErros = false, minutos = 0, quanta
     nao_encontrados: itens.filter((x) => x.status >= 400 && x.status < 500).length,
     ms_mediano: ms.length ? ms[Math.floor(ms.length / 2)] : null,
     ms_maximo: ms.length ? ms[ms.length - 1] : null,
+    por_rota: Object.values(itens.reduce((a, x) => { const g = (a[x.rota] ||= { rota: x.rota, total: 0, erros: 0, ms_maximo: 0 }); g.total++; if (!x.status || x.status >= 500) g.erros++; if (x.ms > g.ms_maximo) g.ms_maximo = x.ms; return a; }, {})).sort((a, b) => b.total - a.total),
+    mais_lentas: [...itens].filter((x) => Number.isFinite(x.ms)).sort((a, b) => b.ms - a.ms).slice(0, 5).map((x) => ({ rota: x.rota, metodo: x.metodo, caminho: x.caminho, status: x.status, ms: x.ms })),
     itens: lista,
   };
 }
