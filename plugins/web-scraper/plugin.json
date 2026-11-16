@@ -1,0 +1,44 @@
+{
+  "id": "web-scraper",
+  "name": "Web Scraper",
+  "description": "Raspagem da web sem código: clique na página para escolher itens e campos, abra num navegador de verdade (páginas com JavaScript), veja as requisições que ela faz e transforme uma API em fonte com um clique. Paginação, CSV e JSON.",
+  "version": "0.3.1",
+  "author": "Pizzy-23",
+  "license": "MIT",
+  "category": "desenvolvimento",
+  "keywords": [
+    "scraping",
+    "webscraping",
+    "raspagem",
+    "crawler",
+    "css",
+    "seletor",
+    "csv",
+    "api",
+    "json",
+    "headless",
+    "devtools"
+  ],
+  "icon": "icon.svg",
+  "order": 117,
+  "settings": [
+    {
+      "key": "userAgent",
+      "label": "User-Agent",
+      "default": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+      "help": "Como o pedido se apresenta ao site"
+    },
+    {
+      "key": "timeout",
+      "label": "Tempo limite de cada página (segundos)",
+      "type": "number",
+      "default": 20
+    },
+    {
+      "key": "browser",
+      "label": "Navegador (Chrome ou Edge)",
+      "placeholder": "achado sozinho",
+      "help": "Caminho do chrome.exe ou msedge.exe, se o plugin não achar sozinho. Usado em Abrir num navegador de verdade."
+    }
+  ]
+}
