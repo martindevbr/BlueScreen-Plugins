@@ -1,0 +1,18 @@
+{
+  "id": "hex-inspector",
+  "name": "Hex Inspector",
+  "description": "Hexadecimal feito para engenharia reversa: rola arquivos de vários GB, seleção com mouse e teclado, inspetor de tipos (u8 a u64, f16 a f64, little ou big-endian, ASCII, UTF-16), ir para offset, busca de texto ou bytes e detecção de formato (PE, Unity, Wwise, DDS, GVAS...).",
+  "version": "0.1.0",
+  "author": "Pizzy-23",
+  "license": "MIT",
+  "category": "desenvolvimento",
+  "keywords": [
+    "hex",
+    "binário",
+    "engenharia reversa",
+    "inspetor",
+    "formato"
+  ],
+  "icon": "icon.svg",
+  "order": 112
+}

@@ -1,0 +1,23 @@
+.vw-hexi { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.vw-hexi .vw-bar { flex-wrap: wrap; gap: 4px; }
+.hx-in { background: var(--bg); color: var(--fg); border: 1px solid var(--line-2); border-radius: 4px; padding: 2px 6px; font: inherit; font-size: 12px; }
+.hx-goto { width: 150px; } .hx-find { width: 170px; }
+.hx-main { flex: 1; min-height: 0; display: flex; }
+.hx-view { flex: 1; min-width: 0; position: relative; overflow: auto; outline: none; font-family: var(--mono); font-size: 13px; cursor: text; user-select: none; }
+.hx-rows { position: absolute; top: 0; left: 0; right: 0; padding: 0 12px; will-change: transform; }
+.hx-spacer { width: 1px; }
+.hx-r { height: 18px; line-height: 18px; white-space: pre; display: flex; gap: 18px; }
+.hx-o { color: var(--muted); }
+.hx-h b, .hx-a b { font-weight: normal; }
+.hx-h b { padding: 0 3px; }
+.hx-h b:nth-child(8) { margin-right: 8px; }
+.hx-h b.z { color: var(--muted); }
+.hx-a { color: var(--fg-2); }
+.hx-h b.s, .hx-a b.s { background: var(--sel); color: var(--fg); outline: 1px solid var(--accent); }
+.hx-side { width: 250px; flex: none; border-left: 1px solid var(--line); padding: 8px; overflow: auto; font-size: 12px; display: flex; flex-direction: column; gap: 8px; }
+.hx-endian { display: flex; gap: 4px; } .hx-endian .chip { flex: 1; font-size: 11px; }
+.hx-ins { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; }
+.hx-k { color: var(--muted); }
+.hx-v { font-family: var(--mono); overflow-wrap: anywhere; cursor: copy; }
+.hx-v:hover { color: var(--accent-2); }
+.hx-help { color: var(--muted); font-size: 11px; line-height: 1.4; }
