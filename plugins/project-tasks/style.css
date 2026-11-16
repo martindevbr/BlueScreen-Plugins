@@ -1,0 +1,13 @@
+.tk-wrap { display: flex; flex-direction: column; gap: 8px; padding: 10px; min-width: 0; height: 100%; box-sizing: border-box; }
+.tk-row { display: flex; gap: 6px; align-items: center; }
+.tk-sp { flex: 1; }
+.tk-in { flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line-2); border-radius: 4px; padding: 5px 8px; font: inherit; }
+.tk-list { flex: 1; min-height: 80px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.tk-proj { color: var(--fg-2); font-size: 12px; }
+.tk-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; color: var(--fg); }
+.tk-item:hover { background: var(--hover); }
+.tk-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tk-name code { background: var(--panel-2); padding: 0 .3em; border-radius: 3px; font-size: .92em; }
+.tk-done .tk-name { color: var(--muted); text-decoration: line-through; }
+.tk-item .tk-del { opacity: 0; }
+.tk-item:hover .tk-del { opacity: 1; }

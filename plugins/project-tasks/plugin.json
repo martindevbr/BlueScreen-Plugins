@@ -1,0 +1,25 @@
+{
+  "id": "project-tasks",
+  "name": "Project Tasks",
+  "description": "Lista de tarefas de cada projeto, guardada num TAREFAS.md na raiz (checkboxes do Markdown). Painel na barra da esquerda (Ctrl+Alt+T): adicionar, marcar, apagar, limpar as feitas e abrir o arquivo.",
+  "version": "0.1.0",
+  "author": "Pizzy-23",
+  "license": "MIT",
+  "category": "produtividade",
+  "keywords": [
+    "tarefas",
+    "todo",
+    "checklist",
+    "markdown"
+  ],
+  "icon": "icon.svg",
+  "order": 102,
+  "settings": [
+    {
+      "key": "file",
+      "label": "Arquivo das tarefas",
+      "default": "TAREFAS.md",
+      "help": "Caminho relativo à raiz do projeto"
+    }
+  ]
+}
