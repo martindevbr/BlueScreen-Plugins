@@ -1,0 +1,23 @@
+.vw-sqlite { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.sq-rw { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--fg-2); }
+.sq-main { flex: 1; min-height: 0; display: flex; }
+.sq-tables { width: 220px; flex: none; overflow: auto; border-right: 1px solid var(--line); padding: 6px; display: flex; flex-direction: column; gap: 1px; }
+.sq-t { display: flex; gap: 6px; align-items: center; background: none; border: 0; color: var(--fg); font: inherit; font-size: 12px; padding: 4px 6px; border-radius: 4px; cursor: pointer; text-align: left; }
+.sq-t:hover { background: var(--hover); } .sq-t.on { background: var(--sel); }
+.sq-tn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sq-tc { color: var(--muted); font-size: 11px; }
+.sq-right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sq-q { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); }
+.sq-sql { flex: 1; min-height: 54px; resize: vertical; background: var(--bg); color: var(--fg); border: 1px solid var(--line-2); border-radius: 4px; padding: 6px; font: 12px/1.5 var(--mono); }
+.sq-out { flex: 1; min-height: 0; overflow: auto; padding: 8px; }
+.sq-meta { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.sq-nav { display: flex; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 6px; }
+.sq-msg { color: var(--fg-2); padding: 8px; }
+.sq-grid { border-collapse: collapse; font: 12px var(--mono); }
+.sq-grid th { position: sticky; top: 0; background: var(--panel-2); text-align: left; font-weight: 600; }
+.sq-grid th, .sq-grid td { border: 1px solid var(--line); padding: 3px 8px; white-space: nowrap; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+.sq-grid tr:hover td { background: var(--hover); }
+.sq-grid td { cursor: copy; }
+.sq-null { color: var(--muted); } .sq-blob { color: var(--accent-2); }
+.sq-schema { margin-top: 10px; } .sq-schema summary { cursor: pointer; color: var(--fg-2); }
+.sq-schema pre { background: var(--panel-2); padding: 8px; border-radius: 4px; white-space: pre-wrap; font: 12px var(--mono); }

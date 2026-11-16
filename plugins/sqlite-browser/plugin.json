@@ -1,0 +1,18 @@
+{
+  "id": "sqlite-browser",
+  "name": "SQLite Browser",
+  "description": "Arquivos .db, .sqlite e .sqlite3 abrem numa aba com as tabelas e quantas linhas cada uma tem, os dados em páginas de 200, a estrutura de cada tabela e um campo para rodar SQL. Abre só para leitura, a menos que você marque Permitir alterar. Usa o Node.js 22.5+ (node:sqlite), sem instalar nada.",
+  "version": "0.1.0",
+  "author": "Pizzy-23",
+  "license": "MIT",
+  "category": "desenvolvimento",
+  "keywords": [
+    "sqlite",
+    "banco de dados",
+    "sql",
+    "db",
+    "tabelas"
+  ],
+  "icon": "icon.svg",
+  "order": 113
+}
