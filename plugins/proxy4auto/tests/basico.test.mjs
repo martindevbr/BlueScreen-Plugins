@@ -1,5 +1,5 @@
 // Testes do Proxy4Auto: node tests/basico.test.mjs
-// A lógica sozinha e depois os nós como o Automator os roda (Novo proxy → Rota → Ligar o proxy segurando o fluxo),
+// A lógica sozinha e depois os nós como o Automator os roda (o nó Proxy segurando o fluxo e mandando eventos),
 // contra o proxy embutido de verdade, em portas livres e com um hosts de mentira.
 // Nada toca no hosts, no DNS nem num proxy que esteja rodando neste PC.
 import assert from 'node:assert/strict';
@@ -125,7 +125,7 @@ caso('lerApontamentos: as rotas saem do texto com o proxy desligado', () => {
   assert.deepEqual(r.map((x) => `${x.id} ${x.local} ${x.destino}`), ['localhost-api:8080 http://localhost-api:8080 https://api.x.com', 'site:2111 http://site:2111 http://loja.com', 'tcp:5433 127.0.0.1:5433 1.2.3.4:5432']);
   assert.equal(portaHttpDe('a=1\r\nporta_http=8080\r\n'), 8080);
 });
-caso('projeto: os nós de montagem só devolvem o projeto com mais uma parte', () => {
+caso('projeto: as rotas e os ajustes do nó viram o que o motor lê', () => {
   const p0 = novoProjeto({ porta_http: '8080', nomes: 'hosts', reescrever_links: 'nao' });
   assert.deepEqual([p0.porta_http, p0.nomes, p0.reescrever_links, p0.rede, p0.rotas.length], [8080, 'hosts', false, false, 0]);
   assert.equal(novoProjeto().porta_http, 80); assert.equal(novoProjeto().reescrever_links, true);
@@ -159,9 +159,12 @@ caso('os nós do automator.json são os do programa, e não há nó de desligar'
   const a = JSON.parse(fs.readFileSync(path.join(RAIZ, 'automator.json'), 'utf8')).nodes;
   const fonte = fs.readFileSync(path.join(RAIZ, 'nos.mjs'), 'utf8');
   for (const n of a) assert.ok(new RegExp(`\\n  async ${n.type}\\(`).test(fonte), 'nó sem programa: ' + n.type);
-  assert.deepEqual(a.slice(0, 3).map((n) => n.type), ['novo', 'rota', 'ligar'], 'a montagem vem primeiro na paleta');
+  assert.equal(a[0].type, 'proxy', 'o Proxy vem primeiro na paleta');
+  assert.ok(!a.some((n) => ['novo', 'rota', 'ligar'].includes(n.type)), 'o proxy é um nó só');
   assert.ok(!a.some((n) => /deslig/i.test(n.type + n.name)), 'o proxy desliga quando o fluxo para');
-  assert.equal(a.find((n) => n.type === 'ligar').run.hold, true, 'o Ligar segura o fluxo sem o teto de tempo');
+  const p = a[0];
+  assert.ok(p.run.hold === true && p.run.stream === true, 'o Proxy segura o fluxo e fala com ele em tempo real');
+  assert.deepEqual(p.outputs, ['ligado', 'requisicao', 'erro']);
 });
 
 // ---------- os nós, contra o motor de verdade ----------
@@ -173,31 +176,27 @@ const dormir = (ms) => new Promise((ok) => setTimeout(ok, ms));
 const DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'proxy4auto-teste-'));
 const HOSTS = path.join(DADOS, 'hosts-falso');
 const ENV = { ...process.env, PROXY4AUTO_HOSTS: HOSTS };
-// roda um nó como o Automator roda; `segura` devolve o processo sem esperar (o Ligar o proxy fica em execução)
-function no(node, params = {}, input = null, segura = false) {
+// roda um nó como o Automator roda. `extra.segura`: devolve o processo sem esperar (o nó Proxy fica em execução) e
+// `linhas()` com o que ele já mandou (uma linha de JSON por vez: registro, estado e eventos)
+function no(node, params = {}, input = null, extra = {}) {
   const c = spawn(process.execPath, [path.join(RAIZ, 'nos.mjs')], { cwd: RAIZ, env: ENV });
   let out = '', err = '';
   c.stdout.on('data', (d) => (out += d)); c.stderr.on('data', (d) => (err += d));
   const fim = new Promise((ok) => c.on('close', (code) => { let v = null; try { v = JSON.parse(out); } catch {} ok({ code, v, err: err.trim() }); }));
-  c.stdin.end(JSON.stringify({ node, params, input, data: DADOS }));
-  return segura ? { processo: c, fim } : fim;
+  c.stdin.end(JSON.stringify({ node, params, input, data: DADOS, ...(extra.ports ? { ports: extra.ports } : {}) }));
+  const linhas = () => out.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return { lixo: l }; } });
+  return extra.segura ? { processo: c, fim, linhas } : fim;
 }
 const noAr = async () => (await no('status', {})).v.port === 'true';
 async function ate(cond, segundos, oQue) { for (let i = 0; i < segundos * 5; i++) { if (await cond()) return; await dormir(200); } assert.fail(oQue); }
-// o fluxo: Novo proxy → Rota → Rota → ... (cada nó recebe a saída do anterior)
-async function montar(novo, ...rotas) {
-  let r = await no('novo', novo);
-  assert.equal(r.code, 0, r.err);
-  for (const rota of rotas) { r = await no('rota', rota, r.v); assert.equal(r.code, 0, r.err); }
-  return r.v;
-}
 
-caso('nós: monta, liga, usa e para o fluxo', async () => {
+caso('nós: o Proxy liga, conta o que acontece em tempo real e sai quando o fluxo para', async () => {
   // o "site": entrega o próprio endereço em links, cabeçalhos e cookie, como um site de verdade
   const site = await escutar((q, s) => {
     const eu = 'http://' + q.headers.host;
     if (q.url === '/api') { s.writeHead(200, { 'content-type': 'application/json' }); return s.end(JSON.stringify({ host: q.headers.host, veio: q.headers['x-forwarded-host'] })); }
     if (q.url === '/r') { s.writeHead(302, { location: eu + '/api' }); return s.end(); }
+    if (q.url === '/quebra') { s.writeHead(500); return s.end('erro'); }
     s.writeHead(200, { 'content-type': 'text/html', server: 'cloudflare', 'x-vercel-id': 'gru1', 'set-cookie': 'sid=1; Path=/' });
     s.end(`<a href="${eu}/x">x</a> <img src="${eu}/i.png">`);
   });
@@ -209,34 +208,40 @@ caso('nós: monta, liga, usa e para o fluxo', async () => {
   const hostsLimpo = () => fs.readFileSync(HOSTS, 'utf8').trim() === '127.0.0.1 meu-site';
   let ligado = null;
   try {
-    // desligado: os nós de uso avisam; os de montagem funcionam (não mexem no PC)
+    // desligado: os nós de uso avisam; o Proxy sem rota ou com rota errada para antes de ligar qualquer coisa
     assert.equal(await noAr(), false);
     let r = await no('rotas', {});
-    assert.equal(r.code, 1); assert.match(r.err, /nenhum fluxo está com ele ligado/);
-    r = await no('rota', { tipo: 'http', destino });
-    assert.equal(r.code, 1); assert.match(r.err, /depois de um Novo proxy/);
-    r = await no('ligar', {}, await montar({ porta_http: ph }));
-    assert.equal(r.code, 1); assert.match(r.err, /chegou sem rotas/);
-    r = await no('rota', { tipo: 'http', destino: 'ftp://x.com' }, await montar({ porta_http: ph }));
-    assert.match(r.err, /só repassa http e https/);
+    assert.equal(r.code, 1); assert.match(r.err, /Ponha o nó Proxy num fluxo e execute/);
+    r = await no('proxy', { porta_http: ph, rotas: [{ destino: '', nome: '' }] });
+    assert.equal(r.code, 1); assert.match(r.err, /Ponha ao menos uma rota/);
+    r = await no('proxy', { porta_http: ph, rotas: [{ destino }, { destino: 'ftp://x.com' }] });
+    assert.equal(r.code, 1); assert.match(r.err, /Rota 2: O proxy só repassa http e https/);
+    r = await no('proxy', { porta_http: ph, rotas: [{ destino: 'tcp://203.0.113.10:5432' }] });
+    assert.match(r.err, /Rota 1: No TCP informe a porta local/);
+    assert.equal(await noAr(), false);
 
-    // porta de uma rota ocupada por outro programa: o Ligar para com erro e não deixa proxy para trás
-    r = await no('ligar', {}, await montar({ porta_http: ph }, { tipo: 'http', destino, nome: 'preso', porta: String(ocupada.address().port) }));
+    // porta de uma rota ocupada por outro programa: para com erro e não deixa proxy para trás
+    r = await no('proxy', { porta_http: ph, rotas: [{ destino, nome: 'preso', porta: String(ocupada.address().port) }] });
     assert.equal(r.code, 1); assert.match(r.err, new RegExp(`não ficou de pé: a porta ${ocupada.address().port} não abriu`));
     if (process.platform === 'win32') assert.match(r.err, /está com node/, 'no Windows diz qual programa ocupa a porta');
     assert.equal(await noAr(), false);
 
-    // o fluxo de verdade: Novo proxy → Rota → Rota (várias) → Ligar o proxy, que fica segurando
-    const projeto = await montar({ porta_http: ph, nomes: 'hosts' }, { tipo: 'http', destino: destino + '/', nome: 'localhost-api' }, { tipo: 'lista', lista: [`http://127.0.0.1:${morta}`] });
-    assert.deepEqual(projeto.rotas.map((x) => x.nome), ['localhost-api', 'localhost-servico']);
-    ligado = no('ligar', {}, projeto, true);
+    // um nó só: as rotas na tabela, e ele fica em execução segurando o fluxo
+    ligado = no('proxy', { porta_http: ph, nomes: 'hosts', rotas: [{ destino: destino + '/', nome: 'localhost-api' }, { destino: `http://127.0.0.1:${morta}`, nome: '' }, { destino: '', nome: '' }] }, null, { segura: true });
     await ate(noAr, 20, 'o proxy não subiu');
-    assert.equal(ligado.processo.exitCode, null, 'o nó Ligar o proxy continua em execução: é ele que segura o fluxo');
+    assert.equal(ligado.processo.exitCode, null, 'o nó Proxy continua em execução: é ele que segura o fluxo');
     assert.match(fs.readFileSync(HOSTS, 'utf8'), /proxy4auto[\s\S]*127\.0\.0\.1\tlocalhost-api\r\n127\.0\.0\.1\tlocalhost-servico/, 'com "Gravar no hosts", os nomes vão para o hosts');
+    await ate(() => ligado.linhas().some((l) => l.port === 'ligado'), 5, 'não avisou que ligou');
+    let ls = ligado.linhas();
+    assert.ok(!ls.some((l) => l.lixo), 'cada linha é um JSON: ' + JSON.stringify(ls.filter((l) => l.lixo)));
+    const aviso = ls.find((l) => l.port === 'ligado').value;
+    assert.deepEqual(aviso.rotas.map((x) => x.local), [`http://localhost-api:${ph}`, `http://localhost-servico:${ph}`]); assert.equal(aviso.hosts, 'ok');
+    assert.ok(ls.some((l) => l.level === 'ok' && /Proxy no ar/.test(l.log)) && ls.some((l) => l.log === `http://localhost-api:${ph}  →  ${destino}`), 'o registro diz que ligou e mostra as rotas');
+    assert.equal(ls.filter((l) => l.status).pop().status, 'no ar · 2 rotas');
 
     r = await no('status', { exigir: 'inteiro' });
     assert.equal(r.v.port, 'true', JSON.stringify(r.v)); assert.equal(r.v.value.rotas_http, 2); assert.equal(r.v.value.hosts, 'ok');
-    r = await no('ligar', {}, projeto);
+    r = await no('proxy', { porta_http: ph, rotas: [{ destino }] });
     assert.equal(r.code, 1); assert.match(r.err, /Já há um proxy ligado por outro fluxo/);
 
     r = await no('pedir', { rota: destino + '/api' });
@@ -247,6 +252,19 @@ caso('nós: monta, liga, usa e para o fluxo', async () => {
     assert.equal(r.v.status, 302); assert.equal(r.v.headers.location, `http://localhost-api:${ph}/api`, 'o redirecionamento volta com o nome local');
     r = await no('pedir', { rota: 'localhost-api', caminho: '/r', seguir: 'sim' });
     assert.equal(r.v.status, 200); assert.equal(r.v.redirecionamentos.length, 1); assert.equal(r.v.url, `http://localhost-api:${ph}/api`);
+    r = await no('pedir', { rota: 'localhost-api', caminho: '/quebra' });
+    assert.equal(r.v.status, 500);
+
+    // tempo real: cada requisição vira uma linha no registro e um evento na saída "requisicao"; a que falha, em "erro"
+    await ate(() => ligado.linhas().some((l) => l.port === 'erro'), 5, 'o erro não chegou em tempo real');
+    ls = ligado.linhas();
+    const reqs = ls.filter((l) => l.port === 'requisicao').map((l) => l.value);
+    assert.deepEqual(reqs.map((x) => `${x.metodo} ${x.caminho} ${x.status}`), ['GET /api 200', 'GET /r 302', 'GET /r 302', 'GET /api 200', 'GET /quebra 500']);
+    assert.deepEqual([reqs[0].url, reqs[0].destino, reqs[0].falhou], [`http://localhost-api:${ph}/api`, destino, false]);
+    assert.deepEqual(ls.filter((l) => l.port === 'erro').map((l) => l.value.caminho), ['/quebra']);
+    assert.ok(ls.some((l) => l.level === 'ok' && l.log.startsWith('200 GET localhost-api/api · ')) && ls.some((l) => l.level === 'error' && l.log.startsWith('500 GET localhost-api/quebra')), 'o registro mostra cada requisição, com o nível');
+    assert.equal(ls.filter((l) => l.status).pop().status, 'no ar · 2 rotas · 5 requisições · 1 erro');
+    assert.ok(!ls.some((l) => l.lixo));
 
     r = await no('disfarce', { rota: 'localhost-api', caminhos: ['/'] });
     assert.equal(r.v.port, 'true', JSON.stringify(r.v));
@@ -261,7 +279,7 @@ caso('nós: monta, liga, usa e para o fluxo', async () => {
     r = await no('converter', { url: destino + '/a?b=1' });
     assert.equal(r.v.para, `http://localhost-api:${ph}/a?b=1`);
     r = await no('converter', { url: 'https://nao.mapeado.com/x' });
-    assert.match(r.err, /Acrescente um nó Rota/);
+    assert.match(r.err, /Acrescente a rota no nó Proxy/);
     r = await no('rotas', { filtro: 'http' });
     assert.deepEqual(r.v.map((x) => x.nome), ['localhost-api', 'localhost-servico']); assert.ok(r.v[0].requisicoes > 3);
     r = await no('trafego', {});
@@ -277,24 +295,23 @@ caso('nós: monta, liga, usa e para o fluxo', async () => {
     await ate(async () => !(await noAr()) && hostsLimpo(), 10, 'o proxy continuou ligado (ou os nomes ficaram no hosts) depois do fluxo parar');
     assert.deepEqual(fs.readdirSync(path.join(DADOS, 'proxy')).sort(), ['apontamentos.txt', 'config.txt', 'proxy.log'], 'a pasta de dados do proxy só tem texto');
 
-    // outro fluxo, outro proxy: sem a reescrita, o destino aparece; e o que ligou antes não deixou rota para trás
-    ligado = no('ligar', {}, await montar({ porta_http: ph, reescrever_links: 'nao' }, { tipo: 'http', destino, nome: 'cru' }), true);
+    // outro fluxo, outro proxy: sem a reescrita o destino aparece; só o erro ligado; registro só do que deu errado;
+    // e as rotas vindas do nó anterior, em texto
+    ligado = no('proxy', { porta_http: ph, reescrever_links: 'nao', registro: 'erros', rotas: [] }, `cru ${destino}`, { segura: true, ports: ['erro'] });
     await ate(noAr, 20, 'o segundo proxy não subiu');
     r = await no('rotas', {});
-    assert.deepEqual(r.v.map((x) => x.nome), ['cru'], 'o proxy é o que o fluxo montou, nada mais');
+    assert.deepEqual(r.v.map((x) => x.nome), ['cru'], 'o proxy é o que o nó diz, nada mais');
     assert.ok(hostsLimpo(), 'sem "Gravar no hosts", o hosts não é tocado');
     r = await no('disfarce', { rota: 'cru', caminhos: ['/'] });
-    assert.equal(r.v.port, 'false'); assert.ok(r.v.value.vazamentos.length >= 2 && /Novo proxy/.test(r.v.value.dica), 'sem a reescrita, o destino aparece');
+    assert.equal(r.v.port, 'false'); assert.ok(r.v.value.vazamentos.length >= 2 && /nó Proxy/.test(r.v.value.dica), 'sem a reescrita, o destino aparece');
+    await no('pedir', { rota: 'cru', caminho: '/quebra' });
+    await ate(() => ligado.linhas().some((l) => l.port === 'erro'), 5, 'o erro do segundo proxy não chegou');
+    ls = ligado.linhas();
+    assert.deepEqual(ls.filter((l) => l.port).map((l) => l.port), ['erro'], 'só manda evento para saída que tem algo ligado');
+    assert.ok(!ls.some((l) => /^200 /.test(l.log || '')) && ls.some((l) => /^500 /.test(l.log || '')), 'registro "só o que deu errado"');
     ligado.processo.kill();
     await ligado.fim; ligado = null;
     await ate(async () => !(await noAr()), 10, 'o segundo proxy continuou ligado');
-
-    // com tempo marcado: fica ligado esse tempo, desliga sozinho e o fluxo segue com o resumo
-    const t0 = Date.now();
-    r = await no('ligar', { minutos: 0.05 }, await montar({ porta_http: ph }, { tipo: 'http', destino, nome: 'breve' }));
-    assert.equal(r.code, 0, r.err); assert.ok(Date.now() - t0 >= 3000 && r.v.ligado_por_s >= 3, JSON.stringify(r.v));
-    assert.deepEqual(r.v.rotas, [{ id: `breve:${ph}`, local: `http://breve:${ph}`, destino }]); assert.equal(r.v.requisicoes, 0);
-    assert.equal(await noAr(), false);
   } finally {
     if (ligado) { ligado.processo.kill(); await ligado.fim; await dormir(2500); }
     site.close(); ocupada.close();

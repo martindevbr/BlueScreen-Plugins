@@ -1,8 +1,9 @@
 // Programa dos nós do Proxy4Auto no Automator.
 // Entrada (stdin): { node, params, input, data }. Saída (stdout): o resultado, em JSON; com duas saídas,
 // { port: "true" | "false", value }. Falha: código diferente de zero e o motivo na saída de erro.
-// O proxy é o lib/motor.mjs, embutido no plugin. Os nós montam um projeto (Novo proxy → Rota → ...) e o Ligar o proxy
-// sobe o motor e segura o fluxo: o proxy vive enquanto o fluxo roda. Os outros nós falam com ele pela porta de controle.
+// O proxy é o lib/motor.mjs, embutido no plugin. O nó Proxy sobe o motor com as rotas dos campos, segura o fluxo e
+// manda para o Automator, em tempo real, o registro e os eventos (ligado, requisição, erro). O proxy vive enquanto o
+// fluxo roda. Os outros nós falam com ele pela porta de controle.
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -42,7 +43,7 @@ const OUTRO = (cfg) => new Falha(`A porta de controle ${cfg.porta} está em uso 
 async function estado(cfg) {
   const e = await sondar(cfg);
   if (e === 'outro') throw OUTRO(cfg);
-  if (!e) throw new Falha('O proxy está desligado: nenhum fluxo está com ele ligado. Monte um fluxo com Novo proxy → Rota → Ligar o proxy e deixe-o rodando; este nó vai em outro fluxo.');
+  if (!e) throw new Falha('O proxy está desligado: nenhum fluxo está com ele ligado. Ponha o nó Proxy num fluxo e execute; este nó vai ligado na saída "ligado" dele, ou em outro fluxo.');
   return e;
 }
 async function api(cfg, metodo, caminho, corpo) {
@@ -91,7 +92,7 @@ async function subirMotor(cfg, { admin = false, segundos = 30 } = {}) {
   const args = [MOTOR, '--dados', cfg.pastaProxy, '--painel', String(cfg.porta), '--dono', String(process.pid)];
   if (admin) {
     const aceitou = await comoAdmin(process.execPath, args, { esperarFim: false });
-    if (!aceitou) throw new Falha('A pergunta de administrador do Windows foi recusada, e sem ela o proxy não grava os nomes no hosts. Aceite, ou escolha "Não gravar" em Nomes locais do nó Novo proxy.');
+    if (!aceitou) throw new Falha('A pergunta de administrador do Windows foi recusada, e sem ela o proxy não grava os nomes no hosts. Aceite, ou escolha "Não gravar" em Nomes locais do nó Proxy.');
   } else {
     spawn(process.execPath, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   }
@@ -146,8 +147,7 @@ async function resolve(nome) {
     return r.some((a) => a.address === '127.0.0.1' || a.address === '::1');
   } catch { return false; }
 }
-const DICA_NOME = (nome) => `${nome} ainda não chega neste PC${/\.localhost$/.test(nome) ? ' fora do navegador (o navegador abre nomes .localhost sozinho)' : ''}. Escolha "Gravar no hosts" em Nomes locais do nó Novo proxy. A Requisição pelo proxy funciona de qualquer jeito.`;
-const projetoDe = (entrada, no) => { if (!ehProjeto(entrada)) throw new Falha(`O nó ${no} recebe o proxy em montagem: ligue-o depois de um Novo proxy (ou de outro nó Rota).`); return entrada; };
+const DICA_NOME = (nome) => `${nome} ainda não chega neste PC${/\.localhost$/.test(nome) ? ' fora do navegador (o navegador abre nomes .localhost sozinho)' : ''}. Escolha "Gravar no hosts" em Nomes locais do nó Proxy. A Requisição pelo proxy funciona de qualquer jeito.`;
 
 // ---------- rotas ----------
 // a rota escolhida no campo (ou a que chega do nó anterior: texto, { id }, { rota: { id } }, { local })
@@ -211,7 +211,7 @@ const cabecalhosDe = (v) => {
 const NOS = {
   async status(p, _e, cfg) {
     const s = await sondar(cfg);
-    if (!s || s === 'outro') return { port: 'false', value: { no_ar: false, porta_controle: cfg.porta, motivo: s ? `a porta de controle ${cfg.porta} está com outro programa` : 'o proxy está desligado', como_ligar: 'um fluxo com Novo proxy → Rota → Ligar o proxy, rodando' } };
+    if (!s || s === 'outro') return { port: 'false', value: { no_ar: false, porta_controle: cfg.porta, motivo: s ? `a porta de controle ${cfg.porta} está com outro programa` : 'o proxy está desligado', como_ligar: 'um fluxo com o nó Proxy, rodando' } };
     const est = s;
     const [fechadas, resolvidos] = await Promise.all([portasFechadas(est), Promise.all(nomesDasRotas(est).map(async (n) => [n, await resolve(n)]))]);
     const semResolver = resolvidos.filter(([, ok]) => !ok).map(([n]) => n);
@@ -230,27 +230,33 @@ const NOS = {
     return { port: passa ? 'true' : 'false', value: v };
   },
 
-  // ---------- montagem: nada aqui mexe no PC, só devolve o projeto com mais uma parte ----------
-  async novo(p) {
-    return novoProjeto(p);
-  },
-
-  async rota(p, entrada) {
-    const proj = projetoDe(entrada, 'Rota');
-    if (p.tipo === 'lista') return comRotas(proj, p.lista);
-    return comRota(proj, { tipo: p.tipo === 'tcp' ? 'tcp' : 'http', destino: p.destino, nome: p.nome, porta: p.porta });
-  },
-
-  // ---------- o fim da montagem: sobe o proxy e segura o fluxo. Parou o fluxo, o proxy sai ----------
-  async ligar(p, entrada, cfg) {
-    const proj = projetoDe(entrada, 'Ligar o proxy');
-    if (!proj.rotas.length) throw new Falha('O proxy chegou sem rotas: ponha ao menos um nó Rota entre o Novo proxy e este.');
+  // ---------- o proxy: um nó só. Sobe com as rotas dos campos, segura o fluxo e conta o que acontece ----------
+  // Enquanto roda, fala com o Automator por linhas de JSON: { log } vai para o registro ao vivo do nó, { status } para
+  // o estado ao lado do nome e { port, value } dispara o que estiver ligado naquela saída (ligado, requisicao, erro).
+  async proxy(p, entrada, cfg, pedido) {
+    const dizer = (o) => process.stdout.write(JSON.stringify(o) + '\n');
+    const log = (texto, level = 'info') => dizer({ log: texto, level });
+    const ouvem = (porta) => !Array.isArray(pedido.ports) || pedido.ports.includes(porta);
+    // o projeto: os ajustes dos campos e as rotas da tabela (ou do que chega do nó anterior)
+    let proj = novoProjeto(p);
+    const linhas = (Array.isArray(p.rotas) ? p.rotas : String(p.rotas || '').split(/\r?\n/)).filter((r) => (typeof r === 'string' ? r.trim() : r && String(r.destino || '').trim()));
+    for (const [i, r] of linhas.entries()) {
+      try {
+        if (typeof r === 'string') proj = comRotas(proj, r);
+        else {
+          const tcp = String(r.destino).trim().match(/^tcp(?::\/\/|\s+)(.+)$/i);
+          proj = comRota(proj, tcp ? { tipo: 'tcp', destino: tcp[1].trim(), porta: r.porta } : { tipo: 'http', destino: r.destino, nome: r.nome, porta: r.porta });
+        }
+      } catch (e) { throw new Falha(`Rota ${i + 1}: ${e.message}`); }
+    }
+    if (!proj.rotas.length && typeof entrada === 'string' && entrada.trim()) proj = comRotas(proj, entrada);
+    if (!proj.rotas.length) throw new Falha('Ponha ao menos uma rota: o destino (https://api.exemplo.com) e, se quiser, o nome local.');
     const portas = [proj.porta_http, ...proj.rotas.map((r) => r.porta)];
     if (portas.includes(cfg.porta)) throw new Falha(`A porta ${cfg.porta} é a porta de controle do proxy: use outra na rota ou troque a porta de controle nas configurações do Proxy4Auto.`);
     let s = await sondar(cfg);
     if (s === 'outro') throw OUTRO(cfg);
     // proxy sem fluxo por trás (o nó que o segurava morreu, ou veio de uma versão antiga do plugin): sai de cena
-    if (s && !(s.dono && vivo(s.dono))) { await desligarMotor(cfg, s); s = null; }
+    if (s && !(s.dono && vivo(s.dono))) { log('Havia um proxy ligado sem fluxo por trás: desligando para ligar este.', 'warn'); await desligarMotor(cfg, s); s = null; }
     if (s) throw new Falha(`Já há um proxy ligado por outro fluxo (PID ${s.pid}, ${s.rotas.length} rota(s)). Pare aquele fluxo antes de ligar este.`);
     if (!cfg.pastaProxy) throw new Falha('O BlueScreen não informou a pasta de dados do plugin. Atualize o BlueScreen.');
     fs.mkdirSync(cfg.pastaProxy, { recursive: true });
@@ -258,27 +264,61 @@ const NOS = {
     fs.writeFileSync(path.join(cfg.pastaProxy, 'apontamentos.txt'), textoDasRotas(proj));
     // gravar os nomes no hosts pede administrador: o Windows pergunta uma vez, ao ligar
     const admin = proj.nomes === 'hosts' && !podeGravarHosts();
-    const t0 = Date.now();
-    let est = await subirMotor(cfg, { admin, segundos: limitar(p.esperar_s, 5, 120, 30) });
+    dizer({ status: 'ligando…' });
+    log(admin ? 'Ligando o proxy como administrador (aceite a pergunta do Windows para gravar os nomes no hosts)…' : 'Ligando o proxy…');
+    const est = await subirMotor(cfg, { admin, segundos: limitar(p.esperar_s, 5, 120, 30) });
     const parar = async (motivo) => { await desligarMotor(cfg, est); return new Falha(motivo); };
     const invalidas = est.rotas.filter((r) => r.tipo === 'invalida');
     if (invalidas.length) throw await parar(`O proxy recusou a rota "${invalidas[0].texto}": ${invalidas[0].erro}.`);
     if (proj.nomes === 'hosts' && est.servicos.hosts !== 'ok') throw await parar('O proxy ligou mas não conseguiu gravar os nomes no hosts.');
     if (proj.dns && est.servicos.dns !== 'ok') { const q = await quemUsa(53); throw await parar(`O DNS local não subiu${q ? `: a porta 53 está com ${q.nome} (PID ${q.pid})` : ' (porta 53 ocupada?)'}.`); }
-    let fechadas = await portasFechadas(est);
-    if (fechadas.length && p.porta_ocupada !== 'esperar') throw await parar('O proxy não ficou de pé: ' + fechadas.map(frasePorta).join('; ').replace(/\. O proxy tenta de novo sozinho a cada 5 s/g, '') + '. Libere a porta ou troque-a no fluxo.');
-    // de pé: segura o fluxo. O motor vigia este processo; quando o fluxo para (o BlueScreen encerra o nó), ele sai
-    const ate = Number(p.minutos) > 0 ? t0 + Number(p.minutos) * 60000 : Infinity;
-    let faltas = 0, ultimo = est;
-    while (Date.now() < ate) {
-      await esperar(1000);
-      const agora = await noAr(cfg);
-      if (agora) { ultimo = agora; faltas = 0; } else if (++faltas >= 3) { const log = fimDoLog(cfg); throw new Falha(`O proxy parou sozinho.${log ? ' O que ele disse: ' + log : ''}`); }
+    const fechadas = await portasFechadas(est);
+    if (fechadas.length && p.porta_ocupada !== 'esperar') throw await parar('O proxy não ficou de pé: ' + fechadas.map(frasePorta).join('; ').replace(/\. O proxy tenta de novo sozinho a cada 5 s/g, '') + '. Libere a porta ou troque-a no nó.');
+    for (const f of fechadas) log(frasePorta(f) + '.', 'warn');
+
+    // de pé
+    const rotas = est.rotas.map(enxuta), porId = new Map(est.rotas.map((r) => [r.id, r]));
+    log(`Proxy no ar (PID ${est.pid}${est.administrador ? ', administrador' : ''}).`, 'ok');
+    for (const r of rotas) log(`${r.local}  →  ${r.destino}`);
+    if (proj.nomes === 'hosts') log('Nomes gravados no hosts: qualquer programa deste PC abre os endereços acima.');
+    else log('Nomes fora do hosts: os nós do Proxy alcançam as rotas; para outros programas, escolha "Gravar no hosts".');
+    let total = 0, erros = 0;
+    const estado = () => dizer({ status: `no ar · ${rotas.length} ${rotas.length === 1 ? 'rota' : 'rotas'}${total ? ` · ${total} ${total === 1 ? 'requisição' : 'requisições'}` : ''}${erros ? ` · ${erros} ${erros === 1 ? 'erro' : 'erros'}` : ''}` });
+    estado();
+    if (ouvem('ligado')) dizer({ port: 'ligado', value: { pid: est.pid, administrador: est.administrador, porta_http: est.config.porta_http, hosts: est.servicos.hosts, rotas, local: rotas[0].local } });
+
+    // tempo real: o motor conta cada requisição e cada problema pela porta de controle (eventos do servidor)
+    const mostrar = p.registro || 'tudo';
+    const evento = (r) => {
+      if (r.tipo === 'req') {
+        const rota = porId.get(r.rota), falhou = !r.status || r.status >= 500;
+        total++; if (falhou) erros++;
+        const v = { rota: r.rota, metodo: r.metodo, caminho: r.caminho, status: r.status || 0, ms: r.ms, falhou, url: (rota ? rota.local : 'http://' + String(r.rota).replace(/:80$/, '')) + r.caminho, destino: rota ? rota.destino : null, quando: new Date(r.t).toISOString() };
+        if (mostrar === 'tudo' || (mostrar === 'erros' && (falhou || r.status >= 400))) log(`${r.status || 'falha'} ${r.metodo} ${rotas.length > 1 && rota && rota.nome ? rota.nome : ''}${r.caminho} · ${r.ms} ms`, falhou ? 'error' : r.status >= 400 ? 'warn' : 'ok');
+        estado();
+        if (ouvem('requisicao')) dizer({ port: 'requisicao', value: v });
+        if (falhou && ouvem('erro')) dizer({ port: 'erro', value: v });
+      } else if (r.tipo === 'erro') log(`${r.tag}: ${r.texto}`, 'error');
+      else if (mostrar === 'tudo' && !['CONFIG', 'PAINEL'].includes(r.tag) && !/escutando em/.test(r.texto)) log(`${r.tag}: ${r.texto}`);
+    };
+    // segura o fluxo. O motor vigia este processo: quando o fluxo para (o BlueScreen encerra o nó), ele sai
+    for (;;) {
+      await new Promise((fim) => {
+        const req = http.get(cfg.painel + '/api/eventos', (res) => {
+          let resto = '';
+          res.setEncoding('utf8');
+          res.on('data', (c) => {
+            resto += c;
+            const blocos = resto.split('\n\n'); resto = blocos.pop();
+            for (const b of blocos) { const m = b.match(/^event: log\ndata: (.*)$/m); if (m) { try { evento(JSON.parse(m[1])); } catch {} } }
+          });
+          res.on('end', fim); res.on('error', fim);
+        });
+        req.on('error', fim);
+      });
+      await esperar(500);
+      if (!(await noAr(cfg))) { await esperar(1500); if (!(await noAr(cfg))) { const l = fimDoLog(cfg); throw new Falha(`O proxy parou sozinho.${l ? ' O que ele disse: ' + l : ''}`); } }
     }
-    // tempo combinado acabou: desliga e segue o fluxo com o resumo do que passou
-    const hosts = await desligarMotor(cfg, ultimo);
-    const tr = trafego(ultimo.log, { quantas: 20 });
-    return { ligado_por_s: Math.round((Date.now() - t0) / 1000), rotas: proj.rotas.map((r) => ({ id: r.id, local: r.local, destino: r.destino })), requisicoes: tr.total, erros: tr.erros, nao_encontrados: tr.nao_encontrados, ms_mediano: tr.ms_mediano, por_rota: tr.por_rota, ...(proj.nomes === 'hosts' ? { hosts: hosts === 'limpo' ? 'nomes tirados do hosts' : 'os nomes ficaram no hosts' } : {}) };
   },
 
   async rotas(p, _e, cfg) {
@@ -367,7 +407,7 @@ const NOS = {
       limpo: !vaz.length, rota: r.id, local: r.local, paginas: paginas.length, vazamentos: vaz,
       avisos: paginas.flatMap((pg) => pg.avisos.map((a) => ({ caminho: pg.caminho, ...a }))),
       reescrever_links: est.config.reescrever_links,
-      ...(!est.config.reescrever_links && vaz.length ? { dica: 'A reescrita de links está desligada: ligue em "Reescrever links" no nó Novo proxy.' } : {}),
+      ...(!est.config.reescrever_links && vaz.length ? { dica: 'A reescrita de links está desligada: ligue em "Reescrever links" no nó Proxy.' } : {}),
     };
     return { port: v.limpo ? 'true' : 'false', value: v };
   },
@@ -405,7 +445,7 @@ const NOS = {
     const orig = paraLocal(url, est.rotas);
     if (orig) return { de: url, para: orig.url, sentido: 'original → local', rota: orig.rota.id };
     if (p.direcao === 'para_original') throw new Falha(`${url} não é de nenhuma rota do proxy.`);
-    throw new Falha(`Nenhuma rota leva para ${new URL(url).origin}. Acrescente um nó Rota no fluxo que liga o proxy.`);
+    throw new Falha(`Nenhuma rota leva para ${new URL(url).origin}. Acrescente a rota no nó Proxy.`);
   },
 
   async admin(p, entrada, cfg) {
@@ -426,7 +466,7 @@ const NOS = {
     else if (acao === 'dns_proxy') {
       // sem o DNS do proxy no ar, apontar o Windows para 127.0.0.1 derruba a internet do PC inteiro
       const est = await estado(cfg);
-      if (!est.config.dns) throw new Falha('O DNS local do proxy está desligado. Ligue em "DNS local" no nó Novo proxy do fluxo que liga o proxy.');
+      if (!est.config.dns) throw new Falha('O DNS local do proxy está desligado. Ligue em "DNS local" no nó Proxy.');
       if (est.servicos.dns !== 'ok' || est.config.porta_dns !== 53) throw new Falha('O DNS do proxy não está respondendo na porta 53. Sem ele a internet do PC pararia, então não mexi no Windows.');
       script = SCRIPTS.dns_proxy(saida, backup);
     } else if (acao === 'dns_restaurar') script = SCRIPTS.dns_restaurar(saida, backup);
@@ -465,7 +505,7 @@ try {
   const fn = Object.hasOwn(NOS, pedido.node) ? NOS[pedido.node] : null;
   if (!fn) throw new Falha('Nó desconhecido: ' + pedido.node);
   const cfg = configuracoes(pedido.data, AQUI);
-  const v = await fn(pedido.params || {}, pedido.input ?? null, cfg);
+  const v = await fn(pedido.params || {}, pedido.input ?? null, cfg, pedido);
   process.stdout.write(JSON.stringify(v ?? null), () => process.exit(0));
 } catch (e) {
   // Falha e os erros de validação (Error) são para a pessoa; o resto é defeito do plugin e vai com a pilha

@@ -4,46 +4,36 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 0.4.0 |
+| **Versão** | 0.5.0 |
 | **Licença** | MIT |
 | **Categoria** | Desenvolvimento |
 | **Precisa de** | BlueScreen 2.1.33 ou mais novo · Node.js 18+ |
-| **Automator** | 13 nós (categoria Proxy) |
+| **Automator** | 11 nós (categoria Proxy) |
 | **Código** | [plugins/proxy4auto](https://github.com/martindevbr/BlueScreen-Plugins/tree/main/plugins/proxy4auto) |
 <!-- ficha:fim -->
 
-Um proxy reverso local que já vem dentro do plugin e é montado por nós do Automator. Ele põe um serviço da internet atrás de um nome que resolve para `127.0.0.1` (`http://localhost-api` → `https://api.cliente.com`) e apaga os rastros do destino: links, cookies e os cabeçalhos da Vercel e da Cloudflare.
+Um proxy reverso local que já vem dentro do plugin, num nó só do Automator. Ele põe um serviço da internet atrás de um nome que resolve para `127.0.0.1` (`http://localhost-api` → `https://api.cliente.com`) e apaga os rastros do destino: links, cookies e os cabeçalhos da Vercel e da Cloudflare.
 
-O proxy é o fluxo: você o monta com os nós **Novo proxy → Rota → Ligar o proxy**, e ele fica ligado enquanto o fluxo roda. Parou o fluxo, o proxy desliga. Não existe nó de desligar, nem configuração guardada fora do fluxo.
+O proxy é o nó **Proxy**: você põe as rotas nele e executa o fluxo. Ele fica no ar enquanto o fluxo roda, mostra o registro ao vivo e dispara o que estiver ligado nas saídas dele. Parou o fluxo, o proxy desliga.
 
 Não precisa instalar nem apontar para nenhum programa de fora: o proxy é um módulo do próprio plugin (o mesmo motor do [localhost-proxy](https://github.com/martindevbr/proxy-server)). O plugin não tem tela e não traz executável, arquivo de lote nem script.
 
 ## Como usar
 
-No **Automator**, categoria **Proxy**, monte um fluxo assim:
+No **Automator**, categoria **Proxy**, ligue um gatilho (Iniciar manualmente, ou Ao abrir o BlueScreen) no nó **Proxy** e preencha a tabela de rotas: o destino e, se quiser, o nome local. Execute.
 
-1. **Novo proxy** começa a montagem (a porta dos nomes locais, se grava os nomes no hosts, se reescreve os links).
-2. **Rota**, um nó para cada rota, um atrás do outro (ou um só com várias, uma por linha).
-3. **Ligar o proxy** fecha a montagem: sobe o proxy e segura o fluxo. O fluxo aparece como em execução enquanto o proxy está no ar.
-
-Clique em **Parar** no fluxo e o proxy sai, tirando os nomes dele do hosts. Para o proxy subir junto com o BlueScreen, comece o fluxo pelo gatilho **Ao abrir o BlueScreen**.
-
-Os outros nós (requisição, disfarce, testes, tráfego) usam o proxy que estiver ligado. Como o **Ligar o proxy** segura o fluxo dele, esses nós vão em outro fluxo.
+- O nó fica em execução, com o estado (`no ar · 2 rotas · 42 requisições · 1 erro`) e as últimas linhas do registro dentro dele. Clique no nó para ver o registro inteiro no painel, atualizando sozinho.
+- O que você ligar nas saídas acontece na hora, com o proxy no ar:
+  - **ao ligar** dispara uma vez, quando o proxy sobe. É onde entram o Conferir o disfarce, o Testar destinos ou um aviso de "está no ar".
+  - **cada requisição** dispara a cada requisição que passa, com rota, método, caminho, status e tempo.
+  - **cada erro** dispara nas que falham (sem resposta ou status 500 ou mais).
+- Clique em **Parar** e o proxy sai, tirando os nomes dele do hosts.
 
 ## Nós do Automator
 
-Montagem, nesta ordem:
-
 | Nó | Para quê |
 |---|---|
-| **Novo proxy** | Começa a montar. Define a porta dos nomes locais, se os nomes vão para o hosts enquanto ligado, a reescrita de links, o acesso pela rede e o DNS local. Não liga nada. |
-| **Rota** | Acrescenta uma rota ao proxy em montagem: nome local → site ou API, ou porta TCP local → banco remoto. Sem nome, sugere um a partir do destino (`https://api.cliente.com.br` vira `localhost-api-cliente`). Aceita várias de uma vez, uma por linha. |
-| **Ligar o proxy** | Sobe o proxy com o que chegou e segura o fluxo. Com um tempo marcado, desliga sozinho ao fim e segue o fluxo com o resumo do tráfego. Se uma porta estiver ocupada, para e diz qual programa está nela. |
-
-Uso, em outros fluxos, com o proxy ligado:
-
-| Nó | Para quê |
-|---|---|
+| **Proxy** | O proxy inteiro: as rotas (site ou API por nome, banco ou outro serviço TCP por porta), a porta dos nomes locais, se grava os nomes no hosts, a reescrita de links e o que aparece no registro. Segura o fluxo enquanto está no ar e tem as saídas **ao ligar**, **cada requisição** e **cada erro**. |
 | **Proxy no ar?** | Sai por sim ou por não. Diz as portas que não abriram e qual programa está nelas, e os nomes locais que ainda não chegam neste PC. |
 | **Listar rotas** | Rotas com endereço local, destino e tráfego. |
 | **Testar destinos** | Confere se o destino de uma rota, ou de todas, responde. Sai por sim quando todos respondem. |
@@ -55,15 +45,17 @@ Uso, em outros fluxos, com o proxy ligado:
 | **Tráfego recente** | As últimas requisições com o total, os erros, os 404, os tempos, o resumo por rota e as mais lentas. |
 | **Permissão de administrador** | Pede a permissão de administrador do Windows e segue por sim ou por não. Ações: só confirmar, pôr o DNS do Windows no proxy (o modo sem hosts), restaurar o DNS, tirar do hosts nomes que sobraram, ou rodar um programa. |
 
-Nos campos de rota, a lista mostra as rotas do proxy. Também dá para digitar o nome local, `nome:porta`, a URL local ou `tcp 5433`.
+Os nós de uso funcionam ligados numa saída do **Proxy** (no mesmo fluxo) ou em outro fluxo, desde que o proxy esteja no ar. Nos campos de rota, a lista mostra as rotas do proxy; também dá para digitar o nome local, `nome:porta`, a URL local ou `tcp 5433`.
+
+Na tabela de rotas do **Proxy**: sem nome local, ele sai do destino (`https://api.cliente.com.br` vira `localhost-api-cliente`). Para um banco ou outro serviço TCP, escreva `tcp://host:porta` no destino e a porta local.
 
 ### Exemplos de fluxo
 
-- **Ambiente de demonstração:** Iniciar manualmente → Novo proxy (Gravar no hosts) → Rota (o destino do cliente) → Ligar o proxy. Terminou a demonstração, Parar.
-- **Sempre no ar:** Ao abrir o BlueScreen → Novo proxy → Rota → Rota → Ligar o proxy.
-- **Janela de teste:** Novo proxy → Rota → Ligar o proxy (30 minutos) → Notificação com `{{input.requisicoes}}` requisições e `{{input.erros}}` erros.
-- **Vigia do disfarce** (outro fluxo): Agenda (de hora em hora) → Proxy no ar? → no "sim", Conferir o disfarce → no "não", Notificação com `{{input.vazamentos}}`.
-- **Depois do deploy** (outro fluxo): Esperar o destino → no "sim", Comparar com o original → no "não", e-mail com `{{input.paginas}}`.
+- **Ambiente de demonstração:** Iniciar manualmente → Proxy (Gravar no hosts). Terminou, Parar.
+- **Confere ao subir:** Proxy → *ao ligar* → Conferir o disfarce → no "não", Notificação com `{{input.vazamentos}}`.
+- **Avisar quando falhar:** Proxy → *cada erro* → Notificação com `{{input.metodo}} {{input.url}} respondeu {{input.status}}`.
+- **Contar ou guardar o tráfego:** Proxy → *cada requisição* → Variável (somar) ou Gravar em arquivo.
+- **Sempre no ar:** Ao abrir o BlueScreen → Proxy.
 - **Trocar de ambiente:** dois fluxos com o mesmo nome local e destinos diferentes. Pare um e execute o outro: os apps continuam no mesmo `http://localhost-api`.
 
 ## Configurações
@@ -74,20 +66,21 @@ Aba Plugins › engrenagem do Proxy4Auto:
 |---|---|
 | **Porta de controle** | a porta de `127.0.0.1` por onde os nós falam com o proxy ligado (padrão 7170). Só troque se outro programa a usar. |
 
-O que o proxy faz (portas, rotas, hosts, reescrita) não é configuração: está nos nós do fluxo que o liga.
+O que o proxy faz (portas, rotas, hosts, reescrita) não é configuração: está nos campos do nó **Proxy**.
 
 ## Limites conhecidos
 
-- Um proxy por vez: com um fluxo segurando o proxy, o **Ligar o proxy** de outro fluxo para com erro até o primeiro ser parado.
-- O **Ligar o proxy** segura o fluxo sem limite de tempo a partir do BlueScreen 2.1.39. Em versão mais antiga o BlueScreen encerra o nó depois de 1 hora, e o proxy sai junto.
+- O registro ao vivo e as saídas em tempo real precisam do BlueScreen 2.1.40 ou mais novo. No 2.1.39 o proxy liga e segura o fluxo, mas sem registro nem eventos; antes dele, o BlueScreen encerra o nó depois de 1 hora.
+- Um proxy por vez: com um fluxo segurando o proxy, o **Proxy** de outro fluxo para com erro até o primeiro ser parado.
+- Os eventos rodam um de cada vez. Com muito tráfego e um trecho demorado ligado em *cada requisição*, eles fazem fila; para só reagir a problemas, ligue em *cada erro*.
 - Enquanto o proxy está ligado, o fluxo dele ocupa uma das execuções simultâneas do Automator.
-- Para mudar uma rota, mude o nó e execute o fluxo de novo: não há como mexer nas rotas com o proxy ligado.
-- A porta padrão dos nomes locais é a 80. Se outro programa estiver nela, o **Ligar o proxy** diz qual; troque em **Novo proxy** ou libere a porta.
-- "Gravar no hosts" depende de você aceitar a pergunta do Windows ao ligar: num fluxo sem ninguém no PC, deixe em "Não gravar".
+- Para mudar uma rota, mude o nó e execute o fluxo de novo.
+- A porta padrão dos nomes locais é a 80. Se outro programa estiver nela, o **Proxy** para e diz qual; troque a porta no nó ou libere-a.
+- "Gravar no hosts" depende de você aceitar a pergunta do Windows ao ligar: num fluxo sem ninguém no PC, deixe em "Não gravar no hosts".
 - Com o DNS do Windows pelo proxy, restaure o DNS antes de parar o fluxo do proxy, senão a internet deste PC para.
 - De fábrica o proxy só atende este PC.
 - O **Conferir o disfarce** e o **Comparar com o original** leem até 2 MB por página e não executam JavaScript: um link montado no navegador escapa.
-- O **Tráfego recente** vê as últimas 1000 linhas do log, desde que o proxy ligou.
+- O registro ao vivo guarda as últimas 200 linhas; o **Tráfego recente**, as últimas 1000 requisições e avisos.
 
 ## Para desenvolver
 
@@ -95,13 +88,19 @@ O que o proxy faz (portas, rotas, hosts, reescrita) não é configuração: est�
 node tests/basico.test.mjs
 ```
 
-Os testes rodam os nós como o Automator os roda (Novo proxy → Rota → Ligar o proxy segurando), com o proxy embutido numa pasta temporária, em portas livres e com um hosts de mentira: não tocam no hosts, no DNS nem nas portas 80 e 7170 deste PC.
+Os testes rodam os nós como o Automator os roda (o nó Proxy segurando o fluxo e mandando registro e eventos), com o proxy embutido numa pasta temporária, em portas livres e com um hosts de mentira: não tocam no hosts, no DNS nem nas portas 80 e 7170 deste PC.
 
 ## Autor e licença
 
 Feito por Martin Hartfelder. Licença MIT (veja o campo `license` do `plugin.json`).
 
 ## Histórico de versões
+
+### 0.5.0
+
+- O proxy virou um nó só, **Proxy**, com as rotas numa tabela. Saíram **Novo proxy**, **Rota** e **Ligar o proxy**: fluxos feitos na 0.4.0 precisam trocar os três por ele.
+- Registro ao vivo: o estado e as últimas linhas aparecem no nó, e o registro inteiro no painel, enquanto o proxy roda.
+- Saídas em tempo real: **ao ligar**, **cada requisição** e **cada erro** disparam o que estiver ligado nelas com o proxy no ar. Os nós de uso agora cabem no mesmo fluxo do proxy.
 
 ### 0.4.0
 
