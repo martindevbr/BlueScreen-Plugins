@@ -1,5 +1,7 @@
 // AllRecording: painel na barra da esquerda (as gravações) + tela fixa (gravar, ouvir, transcrever).
-// Grava com a API do navegador (getDisplayMedia + getUserMedia + MediaRecorder), sem servidor próprio. Os pedaços
+// Grava com o MediaRecorder da página, sem servidor próprio. A tela, a janela e o som do computador vêm da captura
+// nativa da IDE (/api/capture: seletor próprio, sem a janela "Escolha o que compartilhar"); numa IDE sem ela (versão
+// antiga, ou aberta de outro aparelho) o getDisplayMedia do navegador faz o papel. O microfone é o getUserMedia. Os pedaços
 // vão para a pasta de dados a cada poucos segundos: se a IDE fechar no meio, a reunião não se perde.
 // A gravação não depende da tela montada: trocar de painel não para nada.
 const { $, esc, toast } = bs;
@@ -24,14 +26,16 @@ const IC = {
   lixo: '<svg class="i" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12.5h8L17 7"/></svg>',
   mais: '<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   ok: '<svg class="i" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+  atualizar: '<svg class="i" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
+  janela: '<svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 9h17"/></svg>',
 };
 const QUALIDADE = { leve: { fps: 15, bps: 800e3 }, normal: { fps: 24, bps: 1.5e6 }, alta: { fps: 30, bps: 3e6 } };
 const PASTA = 'gravacoes';
 
 // estado da gravação (vive fora da tela) e da interface
 const G = { fase: 'livre', modo: 'tela', comMic: true, comSom: true, titulo: '', id: '', meta: null, rec: null, streams: [], ctx: null, ganhoMic: null,
-  medidores: {}, inicio: 0, pausadoEm: 0, pausado: 0, parte: 0, fila: Promise.resolve(), erroGravar: '', micMudo: false };
-const U = { cfg: {}, lista: [], sel: null, perguntar: false, midia: null, aba: 'ata', textos: {}, trabalho: {}, info: null, ffmpeg: null };
+  medidores: {}, inicio: 0, pausadoEm: 0, pausado: 0, parte: 0, fila: Promise.resolve(), erroGravar: '', micMudo: false, socks: [] };
+const U = { cfg: {}, lista: [], sel: null, perguntar: false, escolher: false, midia: null, aba: 'ata', textos: {}, trabalho: {}, info: null, ffmpeg: null };
 const R = {}; // elementos montados
 const timers = [];
 
@@ -74,6 +78,92 @@ async function carregarLista() {
   pintarLado(); pintar();
 }
 
+// ---------- captura nativa da IDE ----------
+// N.ok: a IDE tem /api/capture (null = ainda não perguntou). N.fontes: telas e janelas com miniatura.
+const N = { ok: null, fontes: null, aba: 'telas', sel: '', carregando: false };
+async function temNativo() {
+  if (N.ok === null) { try { N.ok = !!(await bs.api('capture/sources', { thumbs: '0' }, { quiet: true }))?.supported; } catch { N.ok = false; } }
+  return N.ok;
+}
+const fonte = (id) => N.fontes && [...N.fontes.screens, ...N.fontes.windows].find((x) => x.id === id);
+async function carregarFontes() {
+  N.carregando = true; pintar();
+  try {
+    N.fontes = await bs.api('capture/sources', {}, { quiet: true });
+    if (!fonte(N.sel)) N.sel = (N.fontes.screens.find((x) => x.primary) || N.fontes.screens[0])?.id || '';
+  } catch (e) { U.escolher = false; G.erroGravar = 'Não deu para listar as telas: ' + e.message; }
+  N.carregando = false; pintar();
+}
+// o WebSocket da captura: resolve quando chega o formato ({audio: {rate}} ou {video: {w, h}})
+function abrirCaptura(params) {
+  return new Promise((ok, falha) => {
+    const ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/capture/ws?' + new URLSearchParams(params));
+    ws.binaryType = 'arraybuffer'; G.socks.push(ws);
+    const t = setTimeout(() => falha(new Error('a IDE não respondeu')), 8000);
+    ws.onmessage = (e) => {
+      if (typeof e.data !== 'string') return;
+      const m = JSON.parse(e.data);
+      if (m.error) { clearTimeout(t); falha(new Error(m.error)); }
+      else if (m.audio || m.video) { clearTimeout(t); ws.onmessage = null; ok({ ws, info: m.audio || m.video }); }
+    };
+    ws.onerror = () => { clearTimeout(t); falha(new Error('a captura da IDE não abriu')); };
+  });
+}
+// toca o PCM que chega (float, 2 canais) dentro do AudioContext; segura no máximo 0,4 s de atraso
+const WORKLET = `class P extends AudioWorkletProcessor {
+  constructor() { super(); this.q = []; this.off = 0; this.len = 0;
+    this.port.onmessage = (e) => { const a = new Float32Array(e.data); this.q.push(a); this.len += a.length;
+      while (this.len > sampleRate * 0.8 && this.q.length > 1) { const x = this.q.shift(); this.len -= x.length - this.off; this.off = 0; } }; }
+  process(_, outs) { const L = outs[0][0], R = outs[0][1] || L;
+    for (let i = 0; i < L.length; i++) {
+      if (!this.q.length) { L[i] = R[i] = 0; continue; }
+      const a = this.q[0]; L[i] = a[this.off]; R[i] = a[this.off + 1]; this.off += 2; this.len -= 2;
+      if (this.off >= a.length) { this.q.shift(); this.off = 0; } }
+    return true; } }
+registerProcessor('bs-loopback', P);`;
+async function somNativo(ctx, ws) {
+  await ctx.audioWorklet.addModule('data:text/javascript;charset=utf-8,' + encodeURIComponent(WORKLET));
+  const no = new AudioWorkletNode(ctx, 'bs-loopback', { numberOfInputs: 0, outputChannelCount: [2] });
+  ws.onmessage = (e) => { if (typeof e.data !== 'string') no.port.postMessage(e.data, [e.data]); };
+  ws.onclose = () => { if (G.rec && G.rec.state !== 'inactive' && G.fase !== 'fechando') toast('O som do computador parou de chegar.'); };
+  return no;
+}
+// os quadros JPEG viram uma faixa de vídeo de tamanho fixo (a janela pode mudar de tamanho: entra com tarja)
+function videoNativo(ws, info, fps) {
+  const W = info.w, H = info.h;
+  let faixa, escrever;
+  const desenhar = (c, bmp) => {
+    const k = Math.min(W / bmp.width, H / bmp.height), w = bmp.width * k, h = bmp.height * k;
+    if (w < W || h < H) { c.fillStyle = '#000'; c.fillRect(0, 0, W, H); }
+    c.drawImage(bmp, (W - w) / 2, (H - h) / 2, w, h);
+  };
+  if (window.MediaStreamTrackGenerator && window.VideoFrame && window.OffscreenCanvas) {
+    // não depende da página estar visível (o canvas comum para de gerar quadros com a IDE atrás da reunião)
+    const ger = new MediaStreamTrackGenerator({ kind: 'video' }), w = ger.writable.getWriter();
+    const oc = new OffscreenCanvas(W, H), c = oc.getContext('2d');
+    faixa = ger;
+    escrever = (bmp) => { desenhar(c, bmp); w.write(new VideoFrame(oc, { timestamp: Math.round(performance.now() * 1000) })).catch(() => {}); };
+  } else {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const c = cv.getContext('2d');
+    faixa = cv.captureStream(fps).getVideoTracks()[0];
+    escrever = (bmp) => desenhar(c, bmp);
+  }
+  let ocupado = false;
+  ws.onmessage = async (e) => {
+    if (typeof e.data === 'string') {
+      if (JSON.parse(e.data).gone && G.rec && G.rec.state !== 'inactive') { toast('A janela gravada foi fechada: gravação salva.'); parar(); }
+      return;
+    }
+    if (ocupado) return; // atrasou: pula o quadro
+    ocupado = true;
+    try { const bmp = await createImageBitmap(new Blob([e.data], { type: 'image/jpeg' })); escrever(bmp); bmp.close(); } catch { /* quadro ruim */ }
+    ocupado = false;
+  };
+  ws.onclose = () => { if (G.rec && G.rec.state !== 'inactive' && G.fase !== 'fechando') { toast('A imagem parou de chegar: gravação salva.'); parar(); } };
+  return faixa;
+}
+
 // ---------- gravar ----------
 function pedirGravar() {
   if (G.fase !== 'livre') return;
@@ -81,12 +171,24 @@ function pedirGravar() {
   U.perguntar = true; pintar();
 }
 
+// "Sim, todos concordaram": com a captura nativa, gravar a tela passa antes pelo seletor do AllRecording
+async function confirmou() {
+  U.perguntar = false; G.erroGravar = '';
+  if (G.modo === 'tela' && await temNativo()) { U.escolher = true; return carregarFontes(); }
+  iniciar();
+}
+
 async function iniciar() {
-  U.perguntar = false; G.erroGravar = ''; G.fase = 'abrindo'; pintar();
+  U.perguntar = false; U.escolher = false; G.erroGravar = ''; G.fase = 'abrindo'; pintar();
   const q = QUALIDADE[U.cfg.qualidade] || QUALIDADE.leve;
   try {
-    let tela = null, mic = null;
-    if (G.modo === 'tela' || G.comSom) {
+    let tela = null, mic = null, somN = null, vidN = null;
+    const nativo = (G.modo === 'tela' || G.comSom) && await temNativo();
+    if (nativo) {
+      // o som do computador vem direto do Windows: nada de janela de compartilhar nem de caixinha de áudio
+      if (G.comSom) { try { somN = await abrirCaptura({ src: 'audio' }); } catch (e) { toast('Sem o som do computador (' + e.message + '): gravando sem ele.'); } }
+      if (G.modo === 'tela') vidN = await abrirCaptura({ src: N.sel, fps: q.fps, max: 1920 });
+    } else if (G.modo === 'tela' || G.comSom) {
       // o Chrome só captura o som do computador junto com uma tela, uma janela ou uma aba
       tela = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: q.fps }, audio: G.comSom ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false, systemAudio: 'include', selfBrowserSurface: 'exclude', surfaceSwitching: 'include' });
       G.streams.push(tela);
@@ -98,19 +200,21 @@ async function iniciar() {
     if (G.comSom && tela && !tela.getAudioTracks().length) toast('O som do computador não veio: na janela de compartilhar, marque "Compartilhar áudio do sistema".');
 
     // mistura o microfone e o som do computador numa faixa só, com um medidor para cada
-    const ctx = G.ctx = new AudioContext();
+    // (na taxa do som do computador, que assim não precisa ser convertido)
+    const ctx = G.ctx = new AudioContext(somN ? { sampleRate: somN.info.rate } : undefined);
     const destino = ctx.createMediaStreamDestination();
-    const ligar = (stream, nome) => {
-      if (!stream || !stream.getAudioTracks().length) return null;
-      const src = ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+    const ligarNo = (src, nome) => {
       const ganho = ctx.createGain(), an = ctx.createAnalyser(); an.fftSize = 512;
       src.connect(ganho); ganho.connect(an); ganho.connect(destino);
       G.medidores[nome] = { an, buf: new Uint8Array(an.fftSize), nivel: 0 };
       return ganho;
     };
-    ligar(tela, 'som'); G.ganhoMic = ligar(mic, 'mic');
+    const ligar = (stream, nome) => !stream || !stream.getAudioTracks().length ? null : ligarNo(ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks())), nome);
+    if (somN) ligarNo(await somNativo(ctx, somN.ws), 'som'); else ligar(tela, 'som');
+    G.ganhoMic = ligar(mic, 'mic');
     const faixas = [...destino.stream.getAudioTracks()];
-    const video = G.modo === 'tela' && tela ? tela.getVideoTracks()[0] : null;
+    const video = vidN ? videoNativo(vidN.ws, vidN.info, q.fps) : G.modo === 'tela' && tela ? tela.getVideoTracks()[0] : null;
+    if (vidN) G.streams.push(new MediaStream([video]));
     if (video) faixas.unshift(video); else if (tela) tela.getVideoTracks().forEach((t) => t.stop()); // só áudio: a imagem não é gravada
     if (!Object.keys(G.medidores).length && !video) throw new Error('Nenhum som para gravar: libere o microfone ou compartilhe o áudio do sistema.');
 
@@ -176,7 +280,8 @@ function parar() {
 
 function soltar() {
   G.streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
-  G.streams = []; G.medidores = {}; G.ganhoMic = null;
+  G.socks.forEach((w) => { w.onclose = null; w.onmessage = null; try { w.close(); } catch { /* já fechou */ } });
+  G.streams = []; G.socks = []; G.medidores = {}; G.ganhoMic = null;
   if (G.ctx) { G.ctx.close().catch(() => {}); G.ctx = null; }
 }
 
@@ -548,8 +653,37 @@ function telaPreparar() {
         <p>${IC.mao}<span>Todos na reunião sabem que ela vai ser gravada e concordaram?</span></p>
         <div><button class="chip gr-ainda">Ainda não</button><button class="chip primary gr-sim">${IC.ok}Sim, todos concordaram</button></div>
       </div>`
-      : `<button class="gr-rec" title="Gravar"><span></span></button><div class="gr-dica">${G.modo === 'tela' || G.comSom ? 'O navegador vai perguntar qual tela ou janela compartilhar' + (G.comSom ? ' (marque "Compartilhar áudio do sistema")' : '') + '.' : 'Grava só o seu microfone.'}</div>`}
+      : `<button class="gr-rec" title="Gravar"><span></span></button><div class="gr-dica">${dica()}</div>`}
     ${G.erroGravar ? `<div class="gr-erro">${esc(G.erroGravar)}</div>` : ''}
+  </div>`;
+}
+
+function dica() {
+  if (G.modo === 'tela') return N.ok === false ? 'O navegador vai perguntar qual tela ou janela compartilhar' + (G.comSom ? ' (marque "Compartilhar áudio do sistema")' : '') + '.' : 'Depois de confirmar, você escolhe a tela ou a janela.';
+  if (!G.comSom) return 'Grava só o seu microfone.';
+  return N.ok === false ? 'O navegador vai pedir uma tela só para liberar o som do computador (marque "Compartilhar áudio do sistema").' : G.comMic ? 'Grava o seu microfone e o som do computador.' : 'Grava o som do computador.';
+}
+
+function telaEscolher() {
+  const f = N.fontes, telas = N.aba === 'telas', lista = !f ? [] : telas ? f.screens : f.windows;
+  const cartao = (s) => `<button class="gr-esc${s.id === N.sel ? ' on' : ''}" data-src="${esc(s.id)}" title="${esc(s.name)}">
+      <span class="gr-esc-img">${s.thumb ? `<img src="${s.thumb}" alt="">` : `<span>${s.minimized ? 'Minimizada: restaure antes de gravar' : IC.janela}</span>`}</span>
+      <span class="gr-esc-nome">${esc(s.name)}</span>
+      <small>${telas ? (s.primary ? 'Principal · ' : '') + s.w + ' × ' + s.h : esc(s.app || '')}</small>
+    </button>`;
+  return `<div class="gr-centro gr-escolher">
+    <div class="gr-esc-cab">
+      <b>O que gravar?</b>
+      <div class="seg" role="tablist"><button class="${telas ? 'on' : ''}" data-esc="telas" role="tab" aria-selected="${telas}">Telas</button><button class="${telas ? '' : 'on'}" data-esc="janelas" role="tab" aria-selected="${!telas}">Janelas</button></div>
+      <button class="icon-btn gr-esc-atualizar" title="Atualizar"${N.carregando ? ' disabled' : ''}>${IC.atualizar}</button>
+    </div>
+    <div class="gr-esc-grade${N.carregando ? ' carregando' : ''}">${!f ? '<div class="gr-carrega"><span class="gr-gira"></span></div>'
+      : lista.length ? lista.map(cartao).join('') : '<div class="gr-esc-vazio">Nenhuma janela aberta.</div>'}</div>
+    <div class="gr-esc-pe">
+      <span class="gr-esc-som">${G.comSom ? IC.som + 'Com o som do computador' : ''}</span>
+      <button class="chip gr-esc-voltar">Voltar</button>
+      <button class="chip primary gr-ir"${fonte(N.sel) ? '' : ' disabled'}><span class="gr-ir-ponto"></span>Gravar</button>
+    </div>
   </div>`;
 }
 
@@ -611,7 +745,7 @@ function pintar() {
   // não refaz o player no meio da reprodução: só o que muda em volta
   const player = el.querySelector('.gr-player');
   const manter = player && m && U.midia?.url && player.src === U.midia.url ? player : null;
-  el.innerHTML = G.fase !== 'livre' ? telaGravando() : m ? telaGravacao(m) : telaPreparar();
+  el.innerHTML = G.fase !== 'livre' ? telaGravando() : m ? telaGravacao(m) : U.escolher ? telaEscolher() : telaPreparar();
   if (manter) el.querySelector('.gr-player')?.replaceWith(manter);
   if (foco) el.querySelector('.' + foco.split(' ')[0])?.focus();
 }
@@ -621,8 +755,14 @@ function onPagina(e) {
   const m = U.sel && U.lista.find((x) => x.id === U.sel);
   if (q('.gr-copiar')) return copiarAviso();
   if (q('.gr-modo')) { G.modo = q('.gr-modo').dataset.modo; U.perguntar = false; return pintar(); }
+  if (q('.gr-fonte')) return setTimeout(pintar); // a dica embaixo do botão depende das fontes
   if (q('.gr-rec')) return pedirGravar();
-  if (q('.gr-sim')) return iniciar();
+  if (q('.gr-sim')) return confirmou();
+  if (q('.gr-esc')) { N.sel = q('.gr-esc').dataset.src; return pintar(); }
+  if (q('[data-esc]')) { N.aba = q('[data-esc]').dataset.esc; return pintar(); }
+  if (q('.gr-esc-atualizar')) return carregarFontes();
+  if (q('.gr-esc-voltar')) { U.escolher = false; return pintar(); }
+  if (q('.gr-ir')) return fonte(N.sel) && iniciar();
   if (q('.gr-ainda')) { U.perguntar = false; pintar(); return toast('Tudo bem: é só voltar aqui quando todos concordarem.'); }
   if (q('.gr-pausar')) return pausar();
   if (q('.gr-parar')) return parar();
@@ -647,6 +787,8 @@ function onPagina(e) {
 function montar(el) {
   R.pagina = el; el.classList.add('gr-pagina');
   el.addEventListener('click', onPagina);
+  // dois cliques num cartão do seletor já começam a gravar
+  el.addEventListener('dblclick', (e) => { const c = e.target.closest('.gr-esc'); if (c && U.escolher) { N.sel = c.dataset.src; iniciar(); } });
   el.addEventListener('change', (e) => {
     const f = e.target.dataset.fonte; if (f) { G[f] = e.target.checked; return; }
     if (e.target.matches('.gr-ren')) { const m = U.lista.find((x) => x.id === U.sel); if (m) renomear(m, e.target.value); }
@@ -667,6 +809,7 @@ R.lado = document.createElement('div');
 R.lado.addEventListener('click', onLado);
 
 bs.tools.register({ id: 'allrecording', title: 'AllRecording', icon: ICON, order: 76, page: 'allrecording', render() { pintarLado(); bs.$('#toolBody').replaceChildren(R.lado); } });
+temNativo().then(() => pintar());
 bs.pages.register({ id: 'allrecording', title: 'AllRecording', icon: ICON, pinned: true, render: montar, show() { carregarLista(); }, hide() {} });
 
 itemStatus = bs.status.add({ id: 'allrecording', title: 'AllRecording: voltar para a gravação', onclick: () => { U.sel = null; bs.pages.open('allrecording'); pintar(); pintarLado(); } });

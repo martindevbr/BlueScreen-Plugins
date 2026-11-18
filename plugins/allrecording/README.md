@@ -4,14 +4,14 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 0.1.0 |
+| **Versão** | 0.2.0 |
 | **Licença** | MIT |
 | **Categoria** | Produtividade |
 | **Precisa de** | nada além do BlueScreen |
 | **Código** | [plugins/allrecording](https://github.com/martindevbr/BlueScreen-Plugins/tree/main/plugins/allrecording) |
 <!-- ficha:fim -->
 
-Gravador leve de reuniões: grava a tela, o som do computador (a voz de quem está do outro lado no Meet, Teams ou Zoom) e o seu microfone, com marcadores ao vivo. Depois transcreve no seu PC e o Claude Code ou o Codex escrevem a ata, com resumo, decisões e tarefas. Não precisa de servidor nem de programa extra para gravar.
+Gravador leve de reuniões: grava a tela, o som do computador (a voz de quem está do outro lado no Meet, Teams ou Zoom) e o seu microfone, com marcadores ao vivo. Depois transcreve no seu PC e o Claude Code ou o Codex escrevem a ata, com resumo, decisões e tarefas. Não precisa de servidor nem de programa extra para gravar, e não aparece a janela "Escolha o que compartilhar" do navegador: a IDE captura a tela, a janela e o som do computador direto do Windows.
 
 **Peça permissão antes de gravar.** O AllRecording lembra disso toda vez: a tela de gravar mostra o aviso, tem um botão que copia uma mensagem pronta para o chat da reunião, e a gravação só começa depois de você confirmar que todos concordaram. Gravar pessoas sem avisar é falta de respeito e pode ir contra a LGPD.
 
@@ -23,7 +23,9 @@ O ícone da câmera na barra da esquerda abre a lista de gravações e, na área
 2. Escolha **Tela e som** (vídeo) ou **Só o som** (arquivo bem menor, ótimo para a ata), e marque **Meu microfone** e **Som do computador**.
 3. Clique em **Copiar aviso para o chat**, cole na reunião e espere todo mundo concordar.
 4. Clique no botão vermelho e confirme em **Sim, todos concordaram**.
-5. O navegador pergunta o que compartilhar: escolha a tela ou a janela da reunião e marque **Compartilhar áudio do sistema**. No modo **Só o som** a imagem não é gravada; ela só é pedida porque o Chrome entrega o som do computador junto com uma tela.
+5. Em **Tela e som**, escolha no seletor do AllRecording a tela ou a janela da reunião e clique em **Gravar** (ou dê dois cliques no cartão). Em **Só o som** não há o que escolher: a gravação começa na hora.
+
+O som do computador vem do alto-falante padrão do Windows, sem caixinha de "compartilhar áudio" para marcar. A janela da IDE libera o microfone sozinha, sem perguntar a cada gravação.
 
 Gravando, a tela mostra o tempo e um medidor para o microfone e outro para o som do computador. Dá para **pausar**, **silenciar o microfone** (a gravação continua com o som dos outros), **marcar um momento** (botão do marcador, `Ctrl+Alt+M`, ou uma nota e `Enter`) e **parar**. A barra de baixo da IDE mostra o tempo enquanto grava; um clique nela volta para o gravador. Trocar de painel não para a gravação.
 
@@ -67,7 +69,9 @@ A gravação vai para o disco em pedaços de 4 segundos: se a IDE fechar no meio
 
 ## Limites conhecidos
 
-- O som do computador depende do Chrome/WebView2: ao compartilhar uma janela, nem sempre há a opção de áudio. Compartilhar a **tela inteira** é o jeito mais garantido no Windows.
+- A captura nativa precisa de uma IDE com `/api/capture` (Windows, BlueScreen a partir da versão que trouxe o seletor). Numa IDE mais antiga, ou aberta de outro aparelho pela rede, o AllRecording volta a usar a janela de compartilhar do navegador; aí o som do computador só vem marcando **Compartilhar áudio do sistema**, e compartilhar a **tela inteira** é o jeito mais garantido.
+- O som do computador é o de **todo** o alto-falante padrão (inclusive avisos e músicas que tocarem durante a reunião). Se a saída mudar no meio (um fone conectado), a captura passa para a nova.
+- Janela minimizada não tem imagem: restaure antes de gravar. Janelas de vídeo protegido (filmes com DRM) podem sair pretas.
 - Os arquivos são WebM (VP9/Opus). Com o `ffmpeg` no PATH, o AllRecording acerta o cabeçalho para o player mostrar a duração e pular no tempo; sem ele, a gravação funciona, mas alguns players não mostram a duração.
 - A transcrição não separa quem falou o quê.
 
@@ -82,6 +86,12 @@ node tests/basico.test.mjs
 Feito por Martin Hartfelder. Licença MIT (veja o campo `license` do `plugin.json`).
 
 ## Histórico de versões
+
+### 0.2.0
+
+- Seletor próprio de tela ou janela, com miniaturas, no lugar da janela "Escolha o que compartilhar" do navegador.
+- Só o som: começa direto, com o som do computador vindo do Windows, sem pedir tela.
+- A janela da IDE não pergunta mais pelo microfone.
 
 ### 0.1.0
 

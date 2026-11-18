@@ -39,8 +39,13 @@ const pagina = el(); reg.pages[0].render(pagina);
 assert.match(pagina.html, /Antes de gravar, peça permissão/);
 assert.match(pagina.html, /Copiar aviso para o chat/);
 assert.match(src, /if \(q\('\.gr-rec'\)\) return pedirGravar\(\);/);
-assert.match(src, /if \(q\('\.gr-sim'\)\) return iniciar\(\);/);
-assert.equal((src.match(/(?<!function )\biniciar\(\)/g) || []).length, 1, 'iniciar() só pode ser chamado pela confirmação');
+// "Sim" -> confirmou(): grava direto ou abre o seletor de tela (U.escolher), que só a confirmação liga
+assert.match(src, /if \(q\('\.gr-sim'\)\) return confirmou\(\);/);
+assert.equal((src.match(/U\.escolher = true/g) || []).length, 1);
+assert.match(/async function confirmou\(\) \{[\s\S]*?\n\}/.exec(src)[0], /U\.escolher = true/);
+const chamadas = [...src.matchAll(/^.*(?<!function )\biniciar\(\).*$/gm)].map((m) => m[0]);
+assert.equal(chamadas.length, 3, 'iniciar() só pela confirmação ou pelo seletor');
+assert.ok(chamadas.every((l) => /^ {2}iniciar\(\);$|gr-ir|U\.escolher\)/.test(l)), chamadas.join('\n'));
 
 // 3) o script de transcrição embutido é Python válido
 const py = /const PY_TRANSCREVER = `([\s\S]*?)`;/.exec(src)[1].replace(/\\\\/g, '\\');
