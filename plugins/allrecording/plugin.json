@@ -1,0 +1,21 @@
+{
+  "id": "allrecording",
+  "name": "AllRecording",
+  "description": "Grava a tela, o som do computador e o seu microfone em reuniões, com marcadores ao vivo, sempre lembrando de pedir permissão antes. Transcreve no seu PC e o Claude Code ou o Codex escrevem a ata.",
+  "version": "0.1.0",
+  "author": "Martin Hartfelder",
+  "license": "MIT",
+  "category": "produtividade",
+  "keywords": ["gravar", "gravador", "reunião", "meeting", "tela", "áudio", "microfone", "transcrição", "ata", "whisper", "claude code", "codex"],
+  "icon": "icon.svg",
+  "order": 76,
+  "settings": [
+    { "key": "qualidade", "label": "Qualidade do vídeo", "type": "select", "default": "leve", "options": [{ "value": "leve", "label": "Leve (15 qps, ~0,4 GB por hora)" }, { "value": "normal", "label": "Normal (24 qps, ~0,7 GB por hora)" }, { "value": "alta", "label": "Alta (30 qps, ~1,4 GB por hora)" }], "help": "Reunião é quase sempre slide e rosto: a Leve basta e ocupa pouco." },
+    { "key": "avisoChat", "label": "Aviso para o chat da reunião", "type": "textarea", "default": "Olá, pessoal! Posso gravar esta reunião? A gravação fica só comigo, para eu fazer a ata. Se alguém preferir que não, é só falar.", "help": "O texto que o botão Copiar aviso põe na área de transferência." },
+    { "key": "quemTranscreve", "label": "Quem transcreve", "type": "select", "default": "local", "options": [{ "value": "local", "label": "Motor local (faster-whisper) e o agente escreve a ata" }, { "value": "agente", "label": "O agente faz tudo (pode rodar comandos na pasta da gravação)" }], "help": "No modo local o áudio nunca sai do PC; o agente só lê o texto. No outro, o agente acha ou instala sozinho um transcritor." },
+    { "key": "agente", "label": "Agente de IA", "type": "select", "default": "claude", "options": [{ "value": "claude", "label": "Claude Code" }, { "value": "codex", "label": "Codex" }], "help": "Usa o programa, o modelo e o esforço que estiverem em Agentes de IA da IDE, quando o Automator estiver ligado." },
+    { "key": "modeloIA", "label": "Modelo do agente", "default": "", "help": "Vazio: o do agente." },
+    { "key": "modeloWhisper", "label": "Modelo de transcrição", "type": "select", "default": "small", "options": [{ "value": "base", "label": "base (rápido, menos preciso)" }, { "value": "small", "label": "small (equilíbrio)" }, { "value": "medium", "label": "medium (lento, mais preciso)" }, { "value": "large-v3", "label": "large-v3 (precisa de placa de vídeo)" }], "help": "Baixado uma vez para a pasta de dados do plugin." },
+    { "key": "idioma", "label": "Idioma da reunião", "default": "pt", "help": "Código do idioma (pt, en, es). Vazio: detectar sozinho." }
+  ]
+}
