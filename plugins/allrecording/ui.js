@@ -28,14 +28,25 @@ const IC = {
   ok: '<svg class="i" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   atualizar: '<svg class="i" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
   janela: '<svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 9h17"/></svg>',
+  busca: '<svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>',
+  x: '<svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  volta: '<svg class="i" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/><text x="12" y="15" font-size="7" text-anchor="middle" fill="currentColor" stroke="none" font-family="sans-serif">10</text></svg>',
+  frente: '<svg class="i" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/><text x="12" y="15" font-size="7" text-anchor="middle" fill="currentColor" stroke="none" font-family="sans-serif">10</text></svg>',
+  disco: '<svg class="i" viewBox="0 0 24 24"><ellipse cx="12" cy="6.5" rx="7" ry="2.5"/><path d="M5 6.5v11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-11M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></svg>',
 };
+// tipos de marcador: viram etiqueta colorida na gravação e entram na ata
+const TIPOS = { decisao: { nome: 'Decisão', cor: '#3fb950' }, tarefa: { nome: 'Tarefa', cor: '#4c8dff' }, duvida: { nome: 'Dúvida', cor: '#d99a2b' }, importante: { nome: 'Importante', cor: '#e5484d' } };
+const rotuloMarca = (x) => [x.tipo && TIPOS[x.tipo] ? TIPOS[x.tipo].nome : '', x.texto || ''].filter(Boolean).join(': ');
+// preferências desta tela (o microfone escolhido, a contagem): ficam neste PC
+const pref = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem('allrecording.' + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem('allrecording.' + k, JSON.stringify(v)); } catch { /* sem armazenamento */ } } };
 const QUALIDADE = { leve: { fps: 15, bps: 800e3 }, normal: { fps: 24, bps: 1.5e6 }, alta: { fps: 30, bps: 3e6 } };
 const PASTA = 'gravacoes';
 
 // estado da gravação (vive fora da tela) e da interface
 const G = { fase: 'livre', modo: 'tela', comMic: true, comSom: true, titulo: '', id: '', meta: null, rec: null, streams: [], ctx: null, ganhoMic: null,
-  medidores: {}, inicio: 0, pausadoEm: 0, pausado: 0, parte: 0, fila: Promise.resolve(), erroGravar: '', micMudo: false, socks: [] };
-const U = { cfg: {}, lista: [], sel: null, perguntar: false, escolher: false, midia: null, aba: 'ata', textos: {}, trabalho: {}, info: null, ffmpeg: null };
+  medidores: {}, inicio: 0, pausadoEm: 0, pausado: 0, parte: 0, fila: Promise.resolve(), erroGravar: '', micMudo: false, socks: [], bytes: 0, conta: 0, cancelou: false };
+const U = { cfg: {}, lista: [], sel: null, perguntar: false, escolher: false, midia: null, aba: 'ata', textos: {}, trabalho: {}, info: null, ffmpeg: null,
+  busca: '', achar: '', mics: [], micId: pref.get('mic', ''), contagem: pref.get('contagem', true), teste: null, tipo: '', vel: 1 };
 const R = {}; // elementos montados
 const timers = [];
 
@@ -164,6 +175,42 @@ function videoNativo(ws, info, fps) {
   return faixa;
 }
 
+// ---------- microfone: lista, escolha e teste de nível (só enquanto a pessoa testa) ----------
+async function carregarMics() {
+  try {
+    const d = await navigator.mediaDevices.enumerateDevices();
+    U.mics = d.filter((x) => x.kind === 'audioinput' && x.deviceId !== 'communications').map((x) => ({ id: x.deviceId === 'default' ? '' : x.deviceId, nome: x.label || 'Microfone' }));
+  } catch { U.mics = []; }
+  if (U.micId && !U.mics.some((m) => m.id === U.micId)) U.micId = '';
+}
+const micPedido = () => ({ audio: { ...(U.micId ? { deviceId: { exact: U.micId } } : {}), echoCancellation: true, noiseSuppression: true } });
+async function testarMic() {
+  if (U.teste) return pararTeste();
+  try {
+    const st = await navigator.mediaDevices.getUserMedia(micPedido());
+    const ctx = new AudioContext(), an = ctx.createAnalyser(); an.fftSize = 512;
+    ctx.createMediaStreamSource(st).connect(an);
+    U.teste = { st, ctx, an, buf: new Uint8Array(512), nivel: 0, fim: setTimeout(pararTeste, 15000) };
+    await carregarMics(); // com a permissão dada, os nomes dos microfones aparecem
+    pintar();
+    const passo = () => {
+      const t = U.teste; if (!t) return;
+      t.an.getByteTimeDomainData(t.buf);
+      let q = 0; for (const v of t.buf) { const x = (v - 128) / 128; q += x * x; }
+      t.nivel = Math.max(Math.min(1, Math.sqrt(q / t.buf.length) * 3.2), t.nivel * 0.86);
+      R.pagina?.querySelector('[data-nivel="teste"]')?.style.setProperty('--n', t.nivel.toFixed(3));
+      requestAnimationFrame(passo);
+    };
+    requestAnimationFrame(passo);
+  } catch (e) { toast('Não deu para abrir o microfone: ' + (e.name === 'NotAllowedError' ? 'acesso negado' : e.message)); }
+}
+function pararTeste() {
+  const t = U.teste; if (!t) return;
+  U.teste = null; clearTimeout(t.fim);
+  t.st.getTracks().forEach((x) => x.stop()); t.ctx.close().catch(() => {});
+  pintar();
+}
+
 // ---------- gravar ----------
 function pedirGravar() {
   if (G.fase !== 'livre') return;
@@ -179,7 +226,8 @@ async function confirmou() {
 }
 
 async function iniciar() {
-  U.perguntar = false; U.escolher = false; G.erroGravar = ''; G.fase = 'abrindo'; pintar();
+  pararTeste();
+  U.perguntar = false; U.escolher = false; G.erroGravar = ''; G.fase = 'abrindo'; G.cancelou = false; pintar();
   const q = QUALIDADE[U.cfg.qualidade] || QUALIDADE.leve;
   try {
     let tela = null, mic = null, somN = null, vidN = null;
@@ -194,7 +242,7 @@ async function iniciar() {
       G.streams.push(tela);
     }
     if (G.comMic) {
-      try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); G.streams.push(mic); }
+      try { mic = await navigator.mediaDevices.getUserMedia(micPedido()); G.streams.push(mic); }
       catch (e) { toast('Sem microfone (' + (e.name === 'NotAllowedError' ? 'acesso negado' : e.message) + '): gravando sem ele.'); }
     }
     if (G.comSom && tela && !tela.getAudioTracks().length) toast('O som do computador não veio: na janela de compartilhar, marque "Compartilhar áudio do sistema".');
@@ -229,15 +277,21 @@ async function iniciar() {
 
     rec.ondataavailable = (e) => {
       if (!e.data || !e.data.size) return;
-      const n = ++G.parte, dados = e.data;
+      const n = ++G.parte, dados = e.data; G.bytes += dados.size;
       G.fila = G.fila.then(() => plugin.files.write(`${PASTA}/${G.meta.id}/partes/${String(n).padStart(6, '0')}.webm`, dados)).catch((err) => toast('Não deu para salvar um pedaço da gravação: ' + err.message));
     };
     rec.onstop = () => finalizar();
     // quem para o compartilhamento pela barra do Chrome também encerra a gravação
     (video || tela?.getAudioTracks()[0])?.addEventListener('ended', () => { if (G.rec && G.rec.state !== 'inactive') parar(); });
 
+    // contagem de 3 s (dá para desligar): a pessoa se ajeita antes de valer
+    if (U.contagem) {
+      G.fase = 'contagem';
+      for (G.conta = 3; G.conta > 0 && !G.cancelou; G.conta--) { pintar(); await new Promise((r) => setTimeout(r, 1000)); }
+      if (G.cancelou) { soltar(); G.fase = 'livre'; G.rec = null; await plugin.files.remove(`${PASTA}/${G.meta.id}`).catch(() => {}); G.meta = null; G.id = ''; pintar(); return; }
+    }
     rec.start(4000);
-    G.inicio = Date.now(); G.fase = 'gravando';
+    G.inicio = Date.now(); G.fase = 'gravando'; G.bytes = 0;
     U.sel = null; U.midia = null;
     medir(); estado(); pintar(); pintarLado();
   } catch (e) {
@@ -262,12 +316,28 @@ function mudarMic() {
   pintar();
 }
 
-function marcar(texto) {
-  if (!G.meta || G.fase === 'livre' || G.fase === 'fechando') return false;
-  G.meta.marcas.push({ t: Math.round(decorrido()), texto: (texto || '').trim() });
+function marcar(texto, tipo) {
+  if (!G.meta || !['gravando', 'pausado'].includes(G.fase)) return false;
+  const x = { t: Math.round(decorrido()), texto: (texto || '').trim() };
+  if (tipo && TIPOS[tipo]) x.tipo = tipo;
+  G.meta.marcas.push(x);
   salvarMeta(G.meta).catch(() => {});
-  toast('Momento marcado em ' + relogio(decorrido()), 'ok');
+  toast((x.tipo ? TIPOS[x.tipo].nome : 'Momento') + ' marcado em ' + relogio(x.t), 'ok');
   pintar();
+}
+function tirarMarca(i) {
+  if (!G.meta) return;
+  G.meta.marcas.splice(i, 1); salvarMeta(G.meta).catch(() => {}); pintar();
+}
+// marcador depois de gravado (no player): entra no meta da gravação
+async function marcarGravada(m, t, tipo) {
+  const x = { t: Math.round(t), texto: '' }; if (tipo) x.tipo = tipo;
+  m.marcas = [...(m.marcas || []), x].sort((a, b) => a.t - b.t);
+  const { arqs, ...meta } = m; await salvarMeta(meta);
+  toast('Marcado em ' + relogio(x.t), 'ok'); pintar();
+}
+async function tirarMarcaGravada(m, i) {
+  m.marcas.splice(i, 1); const { arqs, ...meta } = m; await salvarMeta(meta); pintar();
 }
 
 function parar() {
@@ -332,8 +402,12 @@ async function recuperar(m) {
 
 // medidores de nível: só desenham com a tela à vista
 function medir() {
-  const passo = () => {
+  let ultimo = 0;
+  const passo = (agora) => {
     if (G.fase === 'livre') return;
+    // ~20 quadros por segundo bastam para um medidor (e no modo leve, ~8)
+    if (agora - ultimo < (document.documentElement.classList.contains('lite') ? 120 : 50)) return requestAnimationFrame(passo);
+    ultimo = agora;
     for (const [nome, md] of Object.entries(G.medidores)) {
       md.an.getByteTimeDomainData(md.buf);
       let s = 0; for (const v of md.buf) { const x = (v - 128) / 128; s += x * x; }
@@ -344,6 +418,8 @@ function medir() {
     }
     const t = R.pagina?.querySelector('.gr-tempo');
     if (t) t.textContent = relogio(decorrido());
+    const b = R.pagina?.querySelector('.gr-bytes');
+    if (b) b.textContent = tamanho(G.bytes) || '0 KB';
     requestAnimationFrame(passo);
   };
   requestAnimationFrame(passo);
@@ -415,6 +491,14 @@ async function exportar(m) {
   const script = `$dl=(New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path; $n=Join-Path $dl ${ps(nome + '.webm')}; Copy-Item -LiteralPath ${ps((await dirDe(m.id)) + '\\gravacao.webm')} -Destination $n -Force; $n`;
   const r = await plugin.exec('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { timeout: 300000 });
   toast(r.ok ? 'Copiado para ' + r.out.trim() : 'Não deu para copiar: ' + (r.err || '').trim(), r.ok ? 'ok' : undefined);
+}
+
+async function exportarAta(m) {
+  const t = U.textos[m.id + '/ata.md']; if (!t) return;
+  const nome = (m.titulo.replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || m.id) + ' - ata.md';
+  const script = `$dl=(New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path; $n=Join-Path $dl ${ps(nome)}; Copy-Item -LiteralPath ${ps((await dirDe(m.id)) + '\\ata.md')} -Destination $n -Force; $n`;
+  const r = await plugin.exec('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { timeout: 60000 });
+  toast(r.ok ? 'Ata salva em ' + r.out.trim() : 'Não deu para salvar: ' + (r.err || '').trim(), r.ok ? 'ok' : undefined);
 }
 
 async function copiarAviso() {
@@ -501,7 +585,7 @@ async function agenteCLI(acesso) {
 function textoComTempo(segs) { return segs.map((s) => `[${relogio(s.i)}] ${s.t}`).join('\n'); }
 
 function promptAta(m, segs) {
-  const marcas = (m.marcas || []).map((x) => `- ${relogio(x.t)}${x.texto ? ': ' + x.texto : ''}`).join('\n') || '(nenhum)';
+  const marcas = (m.marcas || []).map((x) => `- ${relogio(x.t)}${rotuloMarca(x) ? ': ' + rotuloMarca(x) : ''}`).join('\n') || '(nenhum)';
   return `Você recebe a transcrição automática de uma reunião. Escreva a ata em português do Brasil, em Markdown, só com o que foi dito.
 
 Reunião: ${m.titulo}
@@ -536,7 +620,7 @@ Tarefa, nesta ordem:
 1. Transcreva o áudio NESTE PC, com uma ferramenta local de reconhecimento de fala (faster-whisper, openai-whisper ou whisper.cpp). Não envie o áudio para serviço nenhum na internet.
    Se não houver nenhuma, pode criar um ambiente Python em ${p.venv} e instalar o faster-whisper nele; os modelos ficam em ${p.modelos} (variável HF_HOME). Idioma: ${(U.cfg.idioma || '').trim() || 'detectar'}. Modelo: ${U.cfg.modeloWhisper || 'small'}.
 2. Grave transcricao.json nesta pasta: {"idioma": "..", "duracao": segundos, "segmentos": [{"i": início, "f": fim, "t": "texto"}]}.
-3. Grave ata.md nesta pasta, em português do Brasil, só com o que foi dito (sem inventar nomes, números, prazos ou decisões), citando [mm:ss]: título "# ${m.titulo}", depois Resumo, Decisões, Tarefas, Pontos em aberto e Momentos marcados (${(m.marcas || []).map((x) => relogio(x.t) + (x.texto ? ' ' + x.texto : '')).join('; ') || 'nenhum'}).
+3. Grave ata.md nesta pasta, em português do Brasil, só com o que foi dito (sem inventar nomes, números, prazos ou decisões), citando [mm:ss]: título "# ${m.titulo}", depois Resumo, Decisões, Tarefas, Pontos em aberto e Momentos marcados (${(m.marcas || []).map((x) => relogio(x.t) + (rotuloMarca(x) ? ' ' + rotuloMarca(x) : '')).join('; ') || 'nenhum'}).
 Não mexa em nenhum outro arquivo fora desta pasta e de ${p.venv}.`;
 }
 
@@ -611,18 +695,31 @@ function md(txt) {
 const seg = (t) => t.split(':').map(Number).reduce((a, b) => a * 60 + b, 0);
 
 // ---------- interface ----------
+const diaDe = (ms) => { const d = new Date(ms), h = new Date(); h.setHours(0, 0, 0, 0); const dd = new Date(d); dd.setHours(0, 0, 0, 0);
+  const n = Math.round((h - dd) / 864e5); return n === 0 ? 'Hoje' : n === 1 ? 'Ontem' : n < 7 ? d.toLocaleDateString('pt-BR', { weekday: 'long' }).replace(/^./, (c) => c.toUpperCase()) : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: d.getFullYear() === h.getFullYear() ? undefined : 'numeric' }); };
+const hora = (ms) => new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 function pintarLado() {
   if (!R.lado) return;
   const gravando = G.fase !== 'livre';
+  const q = U.busca.trim().toLowerCase();
+  const lista = U.lista.filter((m) => m.id !== G.id && (!q || m.titulo.toLowerCase().includes(q)));
+  let dia = '', itens = '';
+  for (const m of lista) {
+    const d = diaDe(m.inicio); if (d !== dia) { dia = d; itens += `<div class="gr-dia">${esc(d)}</div>`; }
+    itens += `<div class="gr-li${U.sel === m.id ? ' ativo' : ''}" data-id="${esc(m.id)}" title="${esc(m.titulo)}">
+      <span class="gr-li-ic ${m.modo === 'tela' ? 'tela' : 'som'}">${m.modo === 'tela' ? IC.tela : IC.onda}</span>
+      <div class="gr-li-tx"><b>${esc(m.titulo)}</b><small>${hora(m.inicio)}${m.duracao ? ' · ' + relogio(m.duracao) : ''}${m.status === 'interrompida' ? ' · <span class="gr-ambar">interrompida</span>' : ''}</small></div>
+      ${m.arqs?.['ata.md'] ? `<span class="gr-li-tag" title="Tem ata">${IC.texto}</span>` : (m.marcas || []).length ? `<span class="gr-li-n" title="Marcadores">${m.marcas.length}</span>` : ''}
+    </div>`;
+  }
+  const foco = document.activeElement?.classList.contains('gr-busca-in');
   R.lado.innerHTML = `<div class="gr-lado">
-    <button class="chip primary gr-nova"${gravando ? ' disabled' : ''}>${IC.mais}Nova gravação</button>
-    ${gravando ? `<div class="gr-li ativo gr-li-rec" data-id=""><span class="gr-li-ic rec">${IC.onda}</span><div class="gr-li-tx"><b>${esc(G.meta?.titulo || 'Gravando')}</b><small>${G.fase === 'pausado' ? 'Pausado' : 'Gravando agora'}</small></div></div>` : ''}
-    <div class="gr-lista">${U.lista.filter((m) => m.id !== G.id).map((m) => `<div class="gr-li${U.sel === m.id ? ' ativo' : ''}" data-id="${esc(m.id)}">
-      <span class="gr-li-ic">${m.modo === 'tela' ? IC.tela : IC.som}</span>
-      <div class="gr-li-tx"><b>${esc(m.titulo)}</b><small>${dataHora(m.inicio)}${m.duracao ? ' · ' + relogio(m.duracao) : ''}${m.status === 'interrompida' ? ' · <span class="gr-ambar">interrompida</span>' : ''}</small></div>
-      ${m.arqs?.['ata.md'] ? `<span class="gr-li-tag" title="Tem ata">${IC.texto}</span>` : ''}
-    </div>`).join('') || (gravando ? '' : '<div class="empty">Nenhuma gravação ainda.</div>')}</div>
+    <button class="chip primary gr-nova"${gravando ? ' disabled' : ''}><span class="gr-ir-ponto"></span>Nova gravação</button>
+    ${gravando ? `<div class="gr-li ativo gr-li-rec" data-id=""><span class="gr-li-ic rec">${IC.onda}</span><div class="gr-li-tx"><b>${esc(G.meta?.titulo || 'Gravando')}</b><small>${G.fase === 'pausado' ? 'Pausado' : G.fase === 'contagem' ? 'Começando…' : 'Gravando agora'}</small></div></div>` : ''}
+    ${U.lista.length > 4 ? `<label class="gr-busca">${IC.busca}<input class="gr-busca-in" placeholder="Buscar gravação" value="${esc(U.busca)}" spellcheck="false"></label>` : ''}
+    <div class="gr-lista">${itens || (gravando ? '' : `<div class="empty">${q ? 'Nada com esse nome.' : 'Nenhuma gravação ainda.'}</div>`)}</div>
   </div>`;
+  if (foco) { const i = R.lado.querySelector('.gr-busca-in'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
 }
 
 function onLado(e) {
@@ -633,28 +730,50 @@ function onLado(e) {
 }
 
 function telaPreparar() {
-  const audio = G.modo === 'audio';
-  return `<div class="gr-centro">
+  const audio = G.modo === 'audio', t = U.teste;
+  const recentes = U.lista.filter((m) => m.status === 'pronta').slice(0, 3);
+  const micSel = U.mics.length > 1 ? `<select class="gr-mic-sel" aria-label="Qual microfone">${U.mics.map((m) => `<option value="${esc(m.id)}"${m.id === U.micId ? ' selected' : ''}>${esc(m.nome)}</option>`).join('')}</select>` : '';
+  return `<div class="gr-centro gr-prep">
+    <div class="gr-hero">
+      <span class="gr-hero-ic">${ICON}</span>
+      <input class="gr-titulo" placeholder="${esc(tituloPadrao())}" value="${esc(G.titulo)}" spellcheck="false" aria-label="Nome da reunião">
+    </div>
+    <div class="gr-card">
+      <div class="gr-modos" role="radiogroup">
+        <button class="gr-modo${!audio ? ' on' : ''}" data-modo="tela" role="radio" aria-checked="${!audio}">${IC.tela}<b>Tela e som</b><small>Slides, rostos e a conversa</small></button>
+        <button class="gr-modo${audio ? ' on' : ''}" data-modo="audio" role="radio" aria-checked="${audio}">${IC.onda}<b>Só o som</b><small>Arquivo leve, ótimo para a ata</small></button>
+      </div>
+      <div class="gr-linhas">
+        <div class="gr-linha">
+          <span class="gr-linha-ic">${IC.mic}</span>
+          <div class="gr-linha-tx"><b>Meu microfone</b>${micSel || '<small>O microfone padrão do Windows</small>'}</div>
+          ${G.comMic ? `<button class="gr-teste${t ? ' on' : ''}" title="${t ? 'Parar o teste' : 'Ver se o microfone está pegando'}">${t ? `<span class="gr-nivel mini" data-nivel="teste"><i></i></span>Parar` : 'Testar'}</button>` : ''}
+          <button class="sw2 gr-sw${G.comMic ? ' on' : ''}" data-fonte="comMic" role="switch" aria-checked="${G.comMic}" title="Gravar o microfone"><span class="kn"></span></button>
+        </div>
+        <div class="gr-linha">
+          <span class="gr-linha-ic">${IC.som}</span>
+          <div class="gr-linha-tx"><b>Som do computador</b><small>As outras pessoas da reunião</small></div>
+          <button class="sw2 gr-sw${G.comSom ? ' on' : ''}" data-fonte="comSom" role="switch" aria-checked="${G.comSom}" title="Gravar o som do computador"><span class="kn"></span></button>
+        </div>
+        <div class="gr-linha">
+          <span class="gr-linha-ic">${IC.atualizar}</span>
+          <div class="gr-linha-tx"><b>Contagem de 3 segundos</b><small>Antes de começar a valer</small></div>
+          <button class="sw2 gr-sw${U.contagem ? ' on' : ''}" data-opc="contagem" role="switch" aria-checked="${U.contagem}"><span class="kn"></span></button>
+        </div>
+      </div>
+    </div>
     <div class="gr-aviso">
       <span class="gr-aviso-ic">${IC.mao}</span>
-      <div><b>Antes de gravar, peça permissão</b><p>Avise todo mundo na reunião e espere o "pode gravar". Além de ser respeitoso, gravar alguém sem aviso pode ir contra a LGPD.</p></div>
+      <div><b>Antes de gravar, peça permissão</b><p>Avise todo mundo e espere o "pode gravar". Gravar sem aviso pode ir contra a LGPD.</p></div>
       <button class="chip gr-copiar">${IC.copiar}Copiar aviso para o chat</button>
-    </div>
-    <input class="gr-titulo" placeholder="${esc(tituloPadrao())}" value="${esc(G.titulo)}" spellcheck="false" aria-label="Nome da reunião">
-    <div class="gr-modos" role="radiogroup">
-      <button class="gr-modo${!audio ? ' on' : ''}" data-modo="tela" role="radio" aria-checked="${!audio}">${IC.tela}<b>Tela e som</b><small>Slides, rostos e a conversa</small></button>
-      <button class="gr-modo${audio ? ' on' : ''}" data-modo="audio" role="radio" aria-checked="${audio}">${IC.onda}<b>Só o som</b><small>Arquivo leve, ótimo para a ata</small></button>
-    </div>
-    <div class="gr-fontes">
-      <label class="gr-fonte"><input type="checkbox" data-fonte="comMic"${G.comMic ? ' checked' : ''}>${IC.mic}Meu microfone</label>
-      <label class="gr-fonte"><input type="checkbox" data-fonte="comSom"${G.comSom ? ' checked' : ''}>${IC.som}Som do computador</label>
     </div>
     ${U.perguntar ? `<div class="gr-confirma">
         <p>${IC.mao}<span>Todos na reunião sabem que ela vai ser gravada e concordaram?</span></p>
         <div><button class="chip gr-ainda">Ainda não</button><button class="chip primary gr-sim">${IC.ok}Sim, todos concordaram</button></div>
       </div>`
-      : `<button class="gr-rec" title="Gravar"><span></span></button><div class="gr-dica">${dica()}</div>`}
+      : `<button class="gr-rec" title="Gravar (Enter no nome)"><span></span></button><div class="gr-dica">${dica()}</div>`}
     ${G.erroGravar ? `<div class="gr-erro">${esc(G.erroGravar)}</div>` : ''}
+    ${recentes.length ? `<div class="gr-recentes"><div class="gr-sub">Recentes</div>${recentes.map((m) => `<button class="gr-rc" data-abrir="${esc(m.id)}"><span class="gr-li-ic ${m.modo === 'tela' ? 'tela' : 'som'}">${m.modo === 'tela' ? IC.tela : IC.onda}</span><span class="gr-rc-tx"><b>${esc(m.titulo)}</b><small>${dataHora(m.inicio)} · ${relogio(m.duracao)}${m.arqs?.['ata.md'] ? ' · com ata' : ''}</small></span></button>`).join('')}</div>` : ''}
   </div>`;
 }
 
@@ -688,14 +807,17 @@ function telaEscolher() {
 }
 
 function telaGravando() {
-  const m = G.meta || {}, pausado = G.fase === 'pausado', fechando = G.fase === 'fechando' || G.fase === 'abrindo';
-  return `<div class="gr-centro">
+  const m = G.meta || {}, pausado = G.fase === 'pausado', fechando = ['fechando', 'abrindo', 'contagem'].includes(G.fase);
+  if (G.fase === 'contagem') return `<div class="gr-centro gr-vivo-tela"><div class="gr-conta">${G.conta}</div><div class="gr-nome">${esc(m.titulo || '')}</div><button class="chip gr-cancelar-conta">Cancelar</button></div>`;
+  const marcas = (m.marcas || []).map((x, i) => ({ ...x, i })).reverse();
+  return `<div class="gr-centro gr-vivo-tela">
     <div class="gr-vivo${pausado ? ' pausado' : ''}"><span class="gr-ponto"></span>${fechando ? (G.fase === 'abrindo' ? 'Abrindo…' : 'Salvando…') : pausado ? 'Pausado' : 'Gravando'}</div>
     <div class="gr-tempo">${relogio(decorrido())}</div>
     <div class="gr-nome">${esc(m.titulo || '')}</div>
+    <div class="gr-info"><span title="Gravado até agora">${IC.disco}<b class="gr-bytes">${tamanho(G.bytes) || '0 KB'}</b></span>${m.modo === 'tela' ? `<span>${IC.tela}Tela</span>` : `<span>${IC.onda}Só o som</span>`}</div>
     <div class="gr-niveis">
-      ${G.medidores.mic ? `<div class="gr-nivel${G.micMudo ? ' mudo' : ''}" data-nivel="mic">${G.micMudo ? IC.micOff : IC.mic}<i></i></div>` : ''}
-      ${G.medidores.som ? `<div class="gr-nivel" data-nivel="som">${IC.som}<i></i></div>` : ''}
+      ${G.medidores.mic ? `<div class="gr-nivel${G.micMudo ? ' mudo' : ''}" data-nivel="mic" title="Microfone">${G.micMudo ? IC.micOff : IC.mic}<i></i></div>` : ''}
+      ${G.medidores.som ? `<div class="gr-nivel" data-nivel="som" title="Som do computador">${IC.som}<i></i></div>` : ''}
     </div>
     <div class="gr-ctrl">
       ${G.medidores.mic ? `<button class="gr-bt gr-mudo${G.micMudo ? ' on' : ''}" title="${G.micMudo ? 'Ligar o microfone' : 'Silenciar o microfone'}"${fechando ? ' disabled' : ''}>${G.micMudo ? IC.micOff : IC.mic}</button>` : ''}
@@ -703,8 +825,11 @@ function telaGravando() {
       <button class="gr-bt gr-parar" title="Parar e salvar"${fechando ? ' disabled' : ''}>${IC.parar}</button>
       <button class="gr-bt gr-marcar" title="Marcar este momento (Ctrl+Alt+M)"${fechando ? ' disabled' : ''}>${IC.marca}</button>
     </div>
-    <div class="gr-nota"><input class="gr-nota-in" placeholder="Marcar momento com uma nota e Enter" spellcheck="false"${fechando ? ' disabled' : ''}></div>
-    ${(m.marcas || []).length ? `<div class="gr-marcas">${m.marcas.slice().reverse().map((x) => `<div class="gr-marca">${IC.marca}<b>${relogio(x.t)}</b><span>${esc(x.texto || 'Momento marcado')}</span></div>`).join('')}</div>` : ''}
+    <div class="gr-card gr-marcador">
+      <div class="gr-tipos">${Object.entries(TIPOS).map(([k, v]) => `<button class="gr-tipo${U.tipo === k ? ' on' : ''}" data-tipo="${k}" style="--c:${v.cor}"${fechando ? ' disabled' : ''}><i></i>${v.nome}</button>`).join('')}</div>
+      <div class="gr-nota"><input class="gr-nota-in" placeholder="${U.tipo ? TIPOS[U.tipo].nome + ': escreva e Enter (ou só Enter)' : 'Nota opcional e Enter para marcar o momento'}" spellcheck="false"${fechando ? ' disabled' : ''}></div>
+      ${marcas.length ? `<div class="gr-marcas">${marcas.map((x) => `<div class="gr-marca"${x.tipo ? ` style="--c:${TIPOS[x.tipo].cor}"` : ''}><i class="gr-cor"></i><b>${relogio(x.t)}</b><span>${esc(rotuloMarca(x) || 'Momento marcado')}</span><button class="gr-tirar" data-tirar="${x.i}" title="Tirar este marcador">${IC.x}</button></div>`).join('')}</div>` : ''}
+    </div>
   </div>`;
 }
 
@@ -714,28 +839,54 @@ function telaGravacao(m) {
     ${trab ? `<div class="gr-trab"><span class="gr-gira"></span>${esc(trab)}</div>` : `<div class="gr-acoes"><button class="chip primary gr-recuperar">Montar o arquivo</button><button class="chip gr-apagar">${IC.lixo}Apagar</button></div>`}</div>`;
   const ata = U.textos[m.id + '/ata.md'], trans = U.textos[m.id + '/transcricao.md'];
   const midia = U.midia && U.midia.id === m.id ? U.midia : null;
-  const tel = m.modo === 'tela';
+  const tel = m.modo === 'tela', dur = Math.max(1, m.duracao || 1);
+  const aba = U.aba === 'trans' || !ata ? 'trans' : 'ata';
+  const marcas = (m.marcas || []).map((x, i) => ({ ...x, i }));
   return `<div class="gr-ver">
     <div class="gr-cab">
       <input class="gr-titulo gr-ren" value="${esc(m.titulo)}" spellcheck="false" aria-label="Nome da reunião">
-      <div class="gr-meta">${dataHora(m.inicio)} · ${relogio(m.duracao)} · ${tamanho(m.arqs?.['gravacao.webm'])}${m.fontes ? ' · ' + [m.fontes.mic && 'microfone', m.fontes.som && 'som do computador'].filter(Boolean).join(' e ') : ''}</div>
+      <div class="gr-meta"><span>${dataHora(m.inicio)}</span><span>${relogio(m.duracao)}</span><span>${tamanho(m.arqs?.['gravacao.webm'])}</span>${m.fontes ? `<span>${[m.fontes.mic && 'microfone', m.fontes.som && 'som do computador'].filter(Boolean).join(' e ')}</span>` : ''}</div>
     </div>
-    <div class="gr-midia${tel ? '' : ' audio'}">${midia?.url ? (tel ? `<video class="gr-player" controls preload="metadata" src="${midia.url}"></video>` : `<div class="gr-onda">${IC.onda}</div><audio class="gr-player" controls preload="metadata" src="${midia.url}"></audio>`) : midia?.erro ? `<div class="gr-erro">${esc(midia.erro)}</div>` : '<div class="gr-carrega"><span class="gr-gira"></span></div>'}</div>
-    ${(m.marcas || []).length ? `<div class="gr-chips">${m.marcas.map((x) => `<button class="gr-chipm" data-t="${x.t}">${IC.marca}<b>${relogio(x.t)}</b>${x.texto ? esc(x.texto) : ''}</button>`).join('')}</div>` : ''}
+    <div class="gr-player-box">
+      <div class="gr-midia${tel ? '' : ' audio'}">${midia?.url ? (tel ? `<video class="gr-player" controls preload="metadata" src="${midia.url}"></video>` : `<div class="gr-onda">${IC.onda}</div><audio class="gr-player" controls preload="metadata" src="${midia.url}"></audio>`) : midia?.erro ? `<div class="gr-erro">${esc(midia.erro)}</div>` : '<div class="gr-carrega"><span class="gr-gira"></span></div>'}</div>
+      <div class="gr-linha-tempo" title="Clique para ir a esse ponto">
+        <i class="gr-lt-pos" style="left:0"></i>
+        ${marcas.map((x) => `<button class="gr-lt-m" data-t="${x.t}" style="left:${Math.min(100, x.t * 100 / dur).toFixed(2)}%${x.tipo ? ';--c:' + TIPOS[x.tipo].cor : ''}" title="${esc(relogio(x.t) + (rotuloMarca(x) ? ' · ' + rotuloMarca(x) : ''))}"></button>`).join('')}
+      </div>
+      <div class="gr-pctrl">
+        <button class="icon-btn gr-pulo" data-pulo="-10" title="Voltar 10 s (J)">${IC.volta}</button>
+        <button class="icon-btn gr-pulo" data-pulo="10" title="Avançar 10 s (L)">${IC.frente}</button>
+        <span class="seg gr-vel" title="Velocidade">${[1, 1.25, 1.5, 2].map((v) => `<button data-vel="${v}" class="${U.vel === v ? 'on' : ''}">${String(v).replace('.', ',')}×</button>`).join('')}</span>
+        <span class="gr-esp"></span>
+        <span class="gr-marcar-aqui">${Object.entries(TIPOS).map(([k, v]) => `<button class="gr-tipo mini" data-aqui="${k}" style="--c:${v.cor}" title="Marcar ${v.nome.toLowerCase()} no ponto atual"><i></i>${v.nome}</button>`).join('')}<button class="chip gr-aqui" data-aqui="" title="Marcar o ponto atual">${IC.marca}Marcar aqui</button></span>
+      </div>
+    </div>
+    ${marcas.length ? `<div class="gr-chips">${marcas.map((x) => `<span class="gr-chipm"${x.tipo ? ` style="--c:${TIPOS[x.tipo].cor}"` : ''}><button class="gr-chip-ir" data-t="${x.t}"><i class="gr-cor"></i><b>${relogio(x.t)}</b>${esc(rotuloMarca(x))}</button><button class="gr-tirar" data-tirarg="${x.i}" title="Tirar este marcador">${IC.x}</button></span>`).join('')}</div>` : ''}
     <div class="gr-acoes">
       ${trab ? `<div class="gr-trab"><span class="gr-gira"></span>${esc(trab)}<button class="chip gr-cancelar">Parar</button></div>`
         : `<button class="chip primary gr-transcrever">${IC.ia}${ata ? 'Transcrever de novo' : 'Transcrever e fazer a ata'}</button>`}
       <span class="gr-esp"></span>
-      <button class="icon-btn gr-exportar" title="Copiar para Downloads">${IC.baixar}</button>
+      <button class="icon-btn gr-exportar" title="Copiar o vídeo/áudio para Downloads">${IC.baixar}</button>
       <button class="icon-btn gr-pasta" title="Abrir a pasta">${IC.pasta}</button>
       <button class="icon-btn gr-apagar" title="Apagar">${IC.lixo}</button>
     </div>
     ${ata || trans ? `<div class="gr-docs">
-      <div class="seg gr-abas">${ata ? `<button class="${U.aba === 'ata' ? 'on' : ''}" data-aba="ata">Ata</button>` : ''}${trans ? `<button class="${U.aba === 'trans' || !ata ? 'on' : ''}" data-aba="trans">Transcrição</button>` : ''}
-        <span class="gr-esp"></span><button class="icon-btn gr-copiar-doc" title="Copiar o texto">${IC.copiar}</button></div>
-      <div class="gr-doc">${md(U.aba === 'trans' || !ata ? trans : ata)}</div>
+      <div class="gr-abas"><span class="seg">${ata ? `<button class="${aba === 'ata' ? 'on' : ''}" data-aba="ata">Ata</button>` : ''}${trans ? `<button class="${aba === 'trans' ? 'on' : ''}" data-aba="trans">Transcrição</button>` : ''}</span>
+        ${aba === 'trans' ? `<label class="gr-busca gr-achar">${IC.busca}<input class="gr-achar-in" placeholder="Achar na transcrição" value="${esc(U.achar)}" spellcheck="false"></label>` : '<span class="gr-esp"></span>'}
+        ${aba === 'ata' ? `<button class="icon-btn gr-ata-dl" title="Salvar a ata (.md) em Downloads">${IC.baixar}</button>` : ''}
+        <button class="icon-btn gr-copiar-doc" title="Copiar o texto">${IC.copiar}</button></div>
+      <div class="gr-doc">${aba === 'trans' ? docTrans(trans) : md(ata)}</div>
     </div>` : !trab ? `<div class="gr-vazio">${IC.texto}<span>Transcreva para ter o texto da reunião e uma ata com resumo, decisões e tarefas, escrita pelo ${U.cfg.agente === 'codex' ? 'Codex' : 'Claude Code'}.</span></div>` : ''}
   </div>`;
+}
+// transcrição com busca: só as falas que têm o termo, com ele destacado
+function docTrans(txt) {
+  const q = U.achar.trim().toLowerCase();
+  if (!q) return md(txt);
+  const linhas = String(txt || '').replace(/\r/g, '').split('\n').filter((l) => /^\*\*\d/.test(l) && l.toLowerCase().includes(q));
+  if (!linhas.length) return `<p class="gr-nada">Nada com “${esc(U.achar.trim())}” na transcrição.</p>`;
+  const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  return `<p class="gr-nada">${linhas.length} ${linhas.length === 1 ? 'trecho' : 'trechos'}</p>` + linhas.map((l) => `<p>${md(l).replace(/^<p>|<\/p>$/g, '').replace(/(^|>)([^<]+)(?=<|$)/g, (a, p, t) => p + t.replace(re, '<mark>$1</mark>'))}</p>`).join('');
 }
 
 function pintar() {
@@ -747,13 +898,36 @@ function pintar() {
   const manter = player && m && U.midia?.url && player.src === U.midia.url ? player : null;
   el.innerHTML = G.fase !== 'livre' ? telaGravando() : m ? telaGravacao(m) : U.escolher ? telaEscolher() : telaPreparar();
   if (manter) el.querySelector('.gr-player')?.replaceWith(manter);
-  if (foco) el.querySelector('.' + foco.split(' ')[0])?.focus();
+  ligarPlayer();
+  if (foco) { const f = el.querySelector('.' + foco.split(' ')[0]); if (f) { f.focus(); if (f.setSelectionRange && f.value) f.setSelectionRange(f.value.length, f.value.length); } }
 }
+// a linha do tempo acompanha o player (timeupdate: umas 4 vezes por segundo, sem laço próprio)
+function ligarPlayer() {
+  const v = R.pagina?.querySelector('.gr-player'); if (!v) return;
+  v.playbackRate = U.vel;
+  const pos = R.pagina.querySelector('.gr-lt-pos'), m = U.lista.find((x) => x.id === U.sel);
+  const dur = () => (isFinite(v.duration) && v.duration) || m?.duracao || 1;
+  const mover = () => { if (pos) pos.style.left = Math.min(100, v.currentTime * 100 / dur()).toFixed(2) + '%'; };
+  v.ontimeupdate = mover; mover();
+}
+const playerAgora = () => R.pagina?.querySelector('.gr-player')?.currentTime || 0;
 
 function onPagina(e) {
   const q = (s) => e.target.closest(s);
   const m = U.sel && U.lista.find((x) => x.id === U.sel);
   if (q('.gr-copiar')) return copiarAviso();
+  if (q('[data-abrir]')) return abrir(q('[data-abrir]').dataset.abrir);
+  if (q('.gr-teste')) return testarMic();
+  if (q('[data-opc="contagem"]')) { U.contagem = !U.contagem; pref.set('contagem', U.contagem); return pintar(); }
+  if (q('.gr-sw[data-fonte]')) { const k = q('.gr-sw[data-fonte]').dataset.fonte; G[k] = !G[k]; if (k === 'comMic' && !G.comMic) pararTeste(); return pintar(); }
+  if (q('.gr-cancelar-conta')) { G.cancelou = true; return; }
+  if (q('[data-tipo]')) { const k = q('[data-tipo]').dataset.tipo; U.tipo = U.tipo === k ? '' : k; pintar(); return R.pagina.querySelector('.gr-nota-in')?.focus(); }
+  if (q('[data-tirar]')) return tirarMarca(+q('[data-tirar]').dataset.tirar);
+  if (q('.gr-lt-m')) return irPara(+q('.gr-lt-m').dataset.t);
+  if (q('.gr-linha-tempo')) { const b = q('.gr-linha-tempo').getBoundingClientRect(), v = R.pagina.querySelector('.gr-player'); if (v) { const d = (isFinite(v.duration) && v.duration) || (U.lista.find((x) => x.id === U.sel)?.duracao) || 0; irPara(Math.max(0, (e.clientX - b.left) / b.width) * d); } return; }
+  if (q('[data-pulo]')) { const v = R.pagina.querySelector('.gr-player'); if (v) v.currentTime = Math.max(0, v.currentTime + +q('[data-pulo]').dataset.pulo); return; }
+  if (q('[data-vel]')) { U.vel = +q('[data-vel]').dataset.vel; const v = R.pagina.querySelector('.gr-player'); if (v) v.playbackRate = U.vel; R.pagina.querySelectorAll('[data-vel]').forEach((b) => b.classList.toggle('on', +b.dataset.vel === U.vel)); return; }
+  if (q('.gr-chip-ir')) return irPara(+q('.gr-chip-ir').dataset.t);
   if (q('.gr-modo')) { G.modo = q('.gr-modo').dataset.modo; U.perguntar = false; return pintar(); }
   if (q('.gr-fonte')) return setTimeout(pintar); // a dica embaixo do botão depende das fontes
   if (q('.gr-rec')) return pedirGravar();
@@ -767,17 +941,19 @@ function onPagina(e) {
   if (q('.gr-pausar')) return pausar();
   if (q('.gr-parar')) return parar();
   if (q('.gr-mudo')) return mudarMic();
-  if (q('.gr-marcar')) { const i = R.pagina.querySelector('.gr-nota-in'); marcar(i?.value); if (i) i.value = ''; return; }
-  if (q('.gr-chipm')) return irPara(+q('.gr-chipm').dataset.t);
+  if (q('.gr-marcar')) { const i = R.pagina.querySelector('.gr-nota-in'), tp = U.tipo, tx = i?.value; U.tipo = ''; if (i) i.value = ''; marcar(tx, tp); return; }
   if (q('.gr-tlink')) return irPara(seg(q('.gr-tlink').dataset.ir));
   if (!m) return;
+  if (q('[data-aqui]')) return marcarGravada(m, playerAgora(), q('[data-aqui]').dataset.aqui);
+  if (q('[data-tirarg]')) return tirarMarcaGravada(m, +q('[data-tirarg]').dataset.tirarg);
+  if (q('.gr-ata-dl')) return exportarAta(m);
   if (q('.gr-transcrever')) return transcrever(m);
   if (q('.gr-cancelar')) return pararTrabalho();
   if (q('.gr-recuperar')) return recuperar(m);
   if (q('.gr-apagar')) return apagar(m);
   if (q('.gr-pasta')) return abrirPasta(m);
   if (q('.gr-exportar')) return exportar(m);
-  if (q('[data-aba]')) { U.aba = q('[data-aba]').dataset.aba; return pintar(); }
+  if (q('[data-aba]')) { U.aba = q('[data-aba]').dataset.aba; U.achar = ''; return pintar(); }
   if (q('.gr-copiar-doc')) {
     const t = U.textos[m.id + '/' + (U.aba === 'trans' || !U.textos[m.id + '/ata.md'] ? 'transcricao.md' : 'ata.md')] || '';
     navigator.clipboard.writeText(t).then(() => toast('Texto copiado', 'ok'), () => toast('Não deu para copiar.'));
@@ -790,15 +966,27 @@ function montar(el) {
   // dois cliques num cartão do seletor já começam a gravar
   el.addEventListener('dblclick', (e) => { const c = e.target.closest('.gr-esc'); if (c && U.escolher) { N.sel = c.dataset.src; iniciar(); } });
   el.addEventListener('change', (e) => {
-    const f = e.target.dataset.fonte; if (f) { G[f] = e.target.checked; return; }
+    if (e.target.matches('.gr-mic-sel')) { U.micId = e.target.value; pref.set('mic', U.micId); if (U.teste) { pararTeste(); testarMic(); } return; }
     if (e.target.matches('.gr-ren')) { const m = U.lista.find((x) => x.id === U.sel); if (m) renomear(m, e.target.value); }
   });
-  el.addEventListener('input', (e) => { if (e.target.matches('.gr-titulo:not(.gr-ren)')) G.titulo = e.target.value; });
+  let tAchar = 0;
+  el.addEventListener('input', (e) => {
+    if (e.target.matches('.gr-titulo:not(.gr-ren)')) G.titulo = e.target.value;
+    if (e.target.matches('.gr-achar-in')) { U.achar = e.target.value; clearTimeout(tAchar); tAchar = setTimeout(() => { const d = R.pagina.querySelector('.gr-doc'), m = U.lista.find((x) => x.id === U.sel); if (d && m) d.innerHTML = docTrans(U.textos[m.id + '/transcricao.md']); }, 150); }
+  });
+  // no player: espaço pausa, J e L pulam 10 s (fora dos campos de texto)
+  el.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea, select') || e.ctrlKey || e.altKey || e.metaKey) return;
+    const v = el.querySelector('.gr-player'); if (!v || G.fase !== 'livre') return;
+    const k = e.key.toLowerCase();
+    if (k === 'j' || k === 'l') { v.currentTime = Math.max(0, v.currentTime + (k === 'l' ? 10 : -10)); e.preventDefault(); }
+    else if (k === ' ' && e.target === document.body || k === 'k') { v.paused ? v.play().catch(() => {}) : v.pause(); e.preventDefault(); }
+  });
   // os atalhos da IDE não podem engolir o que se digita
   for (const ev of ['keydown', 'keypress', 'keyup']) el.addEventListener(ev, (e) => { if (e.target.matches('input, textarea') && !(e.ctrlKey && e.altKey)) e.stopPropagation(); });
   el.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
-    if (e.target.matches('.gr-nota-in')) { marcar(e.target.value); e.target.value = ''; }
+    if (e.target.matches('.gr-nota-in')) { const tp = U.tipo, tx = e.target.value; U.tipo = ''; e.target.value = ''; marcar(tx, tp); }
     else if (e.target.matches('.gr-ren')) e.target.blur();
     else if (e.target.matches('.gr-titulo')) pedirGravar();
   });
@@ -807,10 +995,12 @@ function montar(el) {
 
 R.lado = document.createElement('div');
 R.lado.addEventListener('click', onLado);
+R.lado.addEventListener('input', (e) => { if (e.target.matches('.gr-busca-in')) { U.busca = e.target.value; pintarLado(); } });
+for (const ev of ['keydown', 'keypress', 'keyup']) R.lado.addEventListener(ev, (e) => { if (e.target.matches('input')) e.stopPropagation(); });
 
 bs.tools.register({ id: 'allrecording', title: 'AllRecording', icon: ICON, order: 76, page: 'allrecording', render() { pintarLado(); bs.$('#toolBody').replaceChildren(R.lado); } });
 temNativo().then(() => pintar());
-bs.pages.register({ id: 'allrecording', title: 'AllRecording', icon: ICON, pinned: true, render: montar, show() { carregarLista(); }, hide() {} });
+bs.pages.register({ id: 'allrecording', title: 'AllRecording', icon: ICON, pinned: true, render: montar, show() { carregarLista(); carregarMics().then(() => { if (G.fase === 'livre' && !U.sel) pintar(); }); }, hide() { pararTeste(); } });
 
 itemStatus = bs.status.add({ id: 'allrecording', title: 'AllRecording: voltar para a gravação', onclick: () => { U.sel = null; bs.pages.open('allrecording'); pintar(); pintarLado(); } });
 if (itemStatus) { itemStatus.classList.add('gr-st'); itemStatus.hidden = true; }
@@ -831,6 +1021,7 @@ plugin.onUnload(() => {
   window.removeEventListener('beforeunload', antesDeSair);
   if (G.rec && G.rec.state !== 'inactive') G.rec.stop();
   if (U.midia?.url) URL.revokeObjectURL(U.midia.url);
+  pararTeste();
 });
 
 carregarLista();

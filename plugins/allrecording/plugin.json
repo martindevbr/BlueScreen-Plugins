@@ -2,7 +2,7 @@
   "id": "allrecording",
   "name": "AllRecording",
   "description": "Grava a tela, o som do computador e o seu microfone em reuniões, com marcadores ao vivo, sempre lembrando de pedir permissão antes. Transcreve no seu PC e o Claude Code ou o Codex escrevem a ata.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "Martin Hartfelder",
   "license": "MIT",
   "category": "produtividade",

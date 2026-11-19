@@ -4,7 +4,7 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 0.2.0 |
+| **Versão** | 0.3.0 |
 | **Licença** | MIT |
 | **Categoria** | Produtividade |
 | **Precisa de** | nada além do BlueScreen |
@@ -86,6 +86,17 @@ node tests/basico.test.mjs
 Feito por Martin Hartfelder. Licença MIT (veja o campo `license` do `plugin.json`).
 
 ## Histórico de versões
+
+### 0.3.0
+
+- Visual novo, mais limpo, e ainda leve (sem bibliotecas; no modo leve da IDE, os medidores redesenham menos vezes).
+- Escolha do microfone e botão **Testar**, com o nível ao vivo, antes de gravar.
+- Contagem de 3 segundos antes de começar (dá para desligar).
+- Marcadores por tipo: **Decisão**, **Tarefa**, **Dúvida** e **Importante**, com nota; dá para tirar um marcador. Os tipos entram na ata.
+- Tamanho da gravação ao vivo.
+- No player: linha do tempo com os marcadores, voltar e avançar 10 s (J e L), velocidade de 1× a 2× e **Marcar aqui** depois de gravado.
+- Busca na transcrição, com os trechos destacados, e **salvar a ata** (.md) em Downloads.
+- Lista de gravações agrupada por dia, com busca, e as recentes na tela inicial.
 
 ### 0.2.0
 
