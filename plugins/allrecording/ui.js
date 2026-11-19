@@ -44,7 +44,7 @@ const PASTA = 'gravacoes';
 
 // estado da gravação (vive fora da tela) e da interface
 const G = { fase: 'livre', modo: 'tela', comMic: true, comSom: true, titulo: '', id: '', meta: null, rec: null, streams: [], ctx: null, ganhoMic: null,
-  medidores: {}, inicio: 0, pausadoEm: 0, pausado: 0, parte: 0, fila: Promise.resolve(), erroGravar: '', micMudo: false, socks: [], bytes: 0, conta: 0, cancelou: false };
+  medidores: {}, inicio: 0, pausadoEm: 0, pausado: 0, parte: 0, fila: Promise.resolve(), erroGravar: '', micMudo: false, socks: [], bytes: 0, conta: 0, cancelou: false, hist: [] };
 const U = { cfg: {}, lista: [], sel: null, perguntar: false, escolher: false, midia: null, aba: 'ata', textos: {}, trabalho: {}, info: null, ffmpeg: null,
   busca: '', achar: '', mics: [], micId: pref.get('mic', ''), contagem: pref.get('contagem', true), teste: null, tipo: '', vel: 1 };
 const R = {}; // elementos montados
@@ -291,7 +291,7 @@ async function iniciar() {
       if (G.cancelou) { soltar(); G.fase = 'livre'; G.rec = null; await plugin.files.remove(`${PASTA}/${G.meta.id}`).catch(() => {}); G.meta = null; G.id = ''; pintar(); return; }
     }
     rec.start(4000);
-    G.inicio = Date.now(); G.fase = 'gravando'; G.bytes = 0;
+    G.inicio = Date.now(); G.fase = 'gravando'; G.bytes = 0; G.hist = [];
     U.sel = null; U.midia = null;
     medir(); estado(); pintar(); pintarLado();
   } catch (e) {
@@ -400,6 +400,23 @@ async function recuperar(m) {
   await carregarLista(); abrir(m.id);
 }
 
+// a onda da gravação: uma barra por medida, as mais novas à direita
+function desenharOnda() {
+  const cv = R.pagina?.querySelector('.gr-onda-viva'); if (!cv) return;
+  const w = cv.clientWidth, h = cv.clientHeight; if (!w) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+  const passo = 5, n = Math.floor(w / passo), dados = G.hist.slice(-n), ini = n - dados.length;
+  const cs = getComputedStyle(cv);
+  c.fillStyle = G.fase === 'pausado' ? cs.getPropertyValue('--muted') || '#888' : cs.getPropertyValue('--gr-rec') || '#e5484d';
+  for (let i = 0; i < n; i++) {
+    const v = i < ini ? 0 : dados[i - ini], a = Math.max(2, v * (h - 6));
+    c.globalAlpha = i < ini ? .18 : .35 + .65 * (i / n);
+    c.fillRect(i * passo, (h - a) / 2, 3, a);
+  }
+  c.globalAlpha = 1;
+}
 // medidores de nível: só desenham com a tela à vista
 function medir() {
   let ultimo = 0;
@@ -420,6 +437,8 @@ function medir() {
     if (t) t.textContent = relogio(decorrido());
     const b = R.pagina?.querySelector('.gr-bytes');
     if (b) b.textContent = tamanho(G.bytes) || '0 KB';
+    if (G.fase === 'gravando') { G.hist.push(Math.max(...Object.entries(G.medidores).map(([n, md]) => (n === 'mic' && G.micMudo ? 0 : md.nivel)), 0)); if (G.hist.length > 400) G.hist.shift(); }
+    desenharOnda();
     requestAnimationFrame(passo);
   };
   requestAnimationFrame(passo);
@@ -731,49 +750,60 @@ function onLado(e) {
 
 function telaPreparar() {
   const audio = G.modo === 'audio', t = U.teste;
-  const recentes = U.lista.filter((m) => m.status === 'pronta').slice(0, 3);
+  const prontas = U.lista.filter((m) => m.status === 'pronta'), recentes = prontas.slice(0, 4);
+  const horas = prontas.reduce((a, m) => a + (m.duracao || 0), 0), espaco = prontas.reduce((a, m) => a + (m.arqs?.['gravacao.webm'] || 0), 0);
   const micSel = U.mics.length > 1 ? `<select class="gr-mic-sel" aria-label="Qual microfone">${U.mics.map((m) => `<option value="${esc(m.id)}"${m.id === U.micId ? ' selected' : ''}>${esc(m.nome)}</option>`).join('')}</select>` : '';
-  return `<div class="gr-centro gr-prep">
-    <div class="gr-hero">
-      <span class="gr-hero-ic">${ICON}</span>
-      <input class="gr-titulo" placeholder="${esc(tituloPadrao())}" value="${esc(G.titulo)}" spellcheck="false" aria-label="Nome da reunião">
-    </div>
-    <div class="gr-card">
-      <div class="gr-modos" role="radiogroup">
-        <button class="gr-modo${!audio ? ' on' : ''}" data-modo="tela" role="radio" aria-checked="${!audio}">${IC.tela}<b>Tela e som</b><small>Slides, rostos e a conversa</small></button>
-        <button class="gr-modo${audio ? ' on' : ''}" data-modo="audio" role="radio" aria-checked="${audio}">${IC.onda}<b>Só o som</b><small>Arquivo leve, ótimo para a ata</small></button>
+  return `<div class="gr-tela gr-prep">
+    <section class="gr-palco">
+      <div class="gr-hero">
+        <span class="gr-hero-ic">${ICON}</span>
+        <input class="gr-titulo" placeholder="${esc(tituloPadrao())}" value="${esc(G.titulo)}" spellcheck="false" aria-label="Nome da reunião">
       </div>
-      <div class="gr-linhas">
-        <div class="gr-linha">
-          <span class="gr-linha-ic">${IC.mic}</span>
-          <div class="gr-linha-tx"><b>Meu microfone</b>${micSel || '<small>O microfone padrão do Windows</small>'}</div>
-          ${G.comMic ? `<button class="gr-teste${t ? ' on' : ''}" title="${t ? 'Parar o teste' : 'Ver se o microfone está pegando'}">${t ? `<span class="gr-nivel mini" data-nivel="teste"><i></i></span>Parar` : 'Testar'}</button>` : ''}
-          <button class="sw2 gr-sw${G.comMic ? ' on' : ''}" data-fonte="comMic" role="switch" aria-checked="${G.comMic}" title="Gravar o microfone"><span class="kn"></span></button>
+      <div class="gr-card">
+        <div class="gr-modos" role="radiogroup">
+          <button class="gr-modo${!audio ? ' on' : ''}" data-modo="tela" role="radio" aria-checked="${!audio}">${IC.tela}<b>Tela e som</b><small>Slides, rostos e a conversa</small></button>
+          <button class="gr-modo${audio ? ' on' : ''}" data-modo="audio" role="radio" aria-checked="${audio}">${IC.onda}<b>Só o som</b><small>Arquivo leve, ótimo para a ata</small></button>
         </div>
-        <div class="gr-linha">
-          <span class="gr-linha-ic">${IC.som}</span>
-          <div class="gr-linha-tx"><b>Som do computador</b><small>As outras pessoas da reunião</small></div>
-          <button class="sw2 gr-sw${G.comSom ? ' on' : ''}" data-fonte="comSom" role="switch" aria-checked="${G.comSom}" title="Gravar o som do computador"><span class="kn"></span></button>
-        </div>
-        <div class="gr-linha">
-          <span class="gr-linha-ic">${IC.atualizar}</span>
-          <div class="gr-linha-tx"><b>Contagem de 3 segundos</b><small>Antes de começar a valer</small></div>
-          <button class="sw2 gr-sw${U.contagem ? ' on' : ''}" data-opc="contagem" role="switch" aria-checked="${U.contagem}"><span class="kn"></span></button>
+        <div class="gr-linhas">
+          <div class="gr-linha">
+            <span class="gr-linha-ic">${IC.mic}</span>
+            <div class="gr-linha-tx"><b>Meu microfone</b>${micSel || '<small>O microfone padrão do Windows</small>'}</div>
+            ${G.comMic ? `<button class="gr-teste${t ? ' on' : ''}" title="${t ? 'Parar o teste' : 'Ver se o microfone está pegando'}">${t ? `<span class="gr-nivel mini" data-nivel="teste"><i></i></span>Parar` : 'Testar'}</button>` : ''}
+            <button class="sw2 gr-sw${G.comMic ? ' on' : ''}" data-fonte="comMic" role="switch" aria-checked="${G.comMic}" title="Gravar o microfone"><span class="kn"></span></button>
+          </div>
+          <div class="gr-linha">
+            <span class="gr-linha-ic">${IC.som}</span>
+            <div class="gr-linha-tx"><b>Som do computador</b><small>As outras pessoas da reunião</small></div>
+            <button class="sw2 gr-sw${G.comSom ? ' on' : ''}" data-fonte="comSom" role="switch" aria-checked="${G.comSom}" title="Gravar o som do computador"><span class="kn"></span></button>
+          </div>
+          <div class="gr-linha">
+            <span class="gr-linha-ic">${IC.atualizar}</span>
+            <div class="gr-linha-tx"><b>Contagem de 3 segundos</b><small>Antes de começar a valer</small></div>
+            <button class="sw2 gr-sw${U.contagem ? ' on' : ''}" data-opc="contagem" role="switch" aria-checked="${U.contagem}"><span class="kn"></span></button>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="gr-aviso">
-      <span class="gr-aviso-ic">${IC.mao}</span>
-      <div><b>Antes de gravar, peça permissão</b><p>Avise todo mundo e espere o "pode gravar". Gravar sem aviso pode ir contra a LGPD.</p></div>
-      <button class="chip gr-copiar">${IC.copiar}Copiar aviso para o chat</button>
-    </div>
-    ${U.perguntar ? `<div class="gr-confirma">
-        <p>${IC.mao}<span>Todos na reunião sabem que ela vai ser gravada e concordaram?</span></p>
-        <div><button class="chip gr-ainda">Ainda não</button><button class="chip primary gr-sim">${IC.ok}Sim, todos concordaram</button></div>
-      </div>`
-      : `<button class="gr-rec" title="Gravar (Enter no nome)"><span></span></button><div class="gr-dica">${dica()}</div>`}
-    ${G.erroGravar ? `<div class="gr-erro">${esc(G.erroGravar)}</div>` : ''}
-    ${recentes.length ? `<div class="gr-recentes"><div class="gr-sub">Recentes</div>${recentes.map((m) => `<button class="gr-rc" data-abrir="${esc(m.id)}"><span class="gr-li-ic ${m.modo === 'tela' ? 'tela' : 'som'}">${m.modo === 'tela' ? IC.tela : IC.onda}</span><span class="gr-rc-tx"><b>${esc(m.titulo)}</b><small>${dataHora(m.inicio)} · ${relogio(m.duracao)}${m.arqs?.['ata.md'] ? ' · com ata' : ''}</small></span></button>`).join('')}</div>` : ''}
+      ${U.perguntar ? `<div class="gr-confirma">
+          <p>${IC.mao}<span>Todos na reunião sabem que ela vai ser gravada e concordaram?</span></p>
+          <div><button class="chip gr-ainda">Ainda não</button><button class="chip primary gr-sim">${IC.ok}Sim, todos concordaram</button></div>
+        </div>`
+        : `<div class="gr-partida"><button class="gr-rec" title="Gravar (Enter no nome)"><span></span></button><div class="gr-dica">${dica()}</div></div>`}
+      ${G.erroGravar ? `<div class="gr-erro">${esc(G.erroGravar)}</div>` : ''}
+    </section>
+    <aside class="gr-lateral">
+      <div class="gr-aviso">
+        <span class="gr-aviso-ic">${IC.mao}</span>
+        <div><b>Antes de gravar, peça permissão</b><p>Avise todo mundo e espere o "pode gravar". Gravar sem aviso pode ir contra a LGPD.</p></div>
+        <button class="chip gr-copiar">${IC.copiar}Copiar aviso para o chat</button>
+      </div>
+      ${prontas.length ? `<div class="gr-resumo">
+        <div><b>${prontas.length}</b><small>${prontas.length === 1 ? 'gravação' : 'gravações'}</small></div>
+        <div><b>${horas >= 3600 ? (horas / 3600).toFixed(1).replace('.', ',') + ' h' : Math.max(1, Math.round(horas / 60)) + ' min'}</b><small>gravados</small></div>
+        <div><b>${tamanho(espaco) || '0 KB'}</b><small>no disco</small></div>
+      </div>
+      <div class="gr-recentes"><div class="gr-sub">Recentes</div>${recentes.map((m) => `<button class="gr-rc" data-abrir="${esc(m.id)}"><span class="gr-li-ic ${m.modo === 'tela' ? 'tela' : 'som'}">${m.modo === 'tela' ? IC.tela : IC.onda}</span><span class="gr-rc-tx"><b>${esc(m.titulo)}</b><small>${dataHora(m.inicio)} · ${relogio(m.duracao)}${m.arqs?.['ata.md'] ? ' · com ata' : ''}</small></span></button>`).join('')}</div>`
+      : `<div class="gr-vazio">${IC.onda}<span>As gravações aparecem aqui e na lista da esquerda. Depois de gravar, dá para transcrever e pedir a ata.</span></div>`}
+    </aside>
   </div>`;
 }
 
@@ -810,26 +840,30 @@ function telaGravando() {
   const m = G.meta || {}, pausado = G.fase === 'pausado', fechando = ['fechando', 'abrindo', 'contagem'].includes(G.fase);
   if (G.fase === 'contagem') return `<div class="gr-centro gr-vivo-tela"><div class="gr-conta">${G.conta}</div><div class="gr-nome">${esc(m.titulo || '')}</div><button class="chip gr-cancelar-conta">Cancelar</button></div>`;
   const marcas = (m.marcas || []).map((x, i) => ({ ...x, i })).reverse();
-  return `<div class="gr-centro gr-vivo-tela">
-    <div class="gr-vivo${pausado ? ' pausado' : ''}"><span class="gr-ponto"></span>${fechando ? (G.fase === 'abrindo' ? 'Abrindo…' : 'Salvando…') : pausado ? 'Pausado' : 'Gravando'}</div>
-    <div class="gr-tempo">${relogio(decorrido())}</div>
-    <div class="gr-nome">${esc(m.titulo || '')}</div>
-    <div class="gr-info"><span title="Gravado até agora">${IC.disco}<b class="gr-bytes">${tamanho(G.bytes) || '0 KB'}</b></span>${m.modo === 'tela' ? `<span>${IC.tela}Tela</span>` : `<span>${IC.onda}Só o som</span>`}</div>
-    <div class="gr-niveis">
-      ${G.medidores.mic ? `<div class="gr-nivel${G.micMudo ? ' mudo' : ''}" data-nivel="mic" title="Microfone">${G.micMudo ? IC.micOff : IC.mic}<i></i></div>` : ''}
-      ${G.medidores.som ? `<div class="gr-nivel" data-nivel="som" title="Som do computador">${IC.som}<i></i></div>` : ''}
-    </div>
-    <div class="gr-ctrl">
-      ${G.medidores.mic ? `<button class="gr-bt gr-mudo${G.micMudo ? ' on' : ''}" title="${G.micMudo ? 'Ligar o microfone' : 'Silenciar o microfone'}"${fechando ? ' disabled' : ''}>${G.micMudo ? IC.micOff : IC.mic}</button>` : ''}
-      <button class="gr-bt gr-pausar" title="${pausado ? 'Continuar' : 'Pausar'}"${fechando ? ' disabled' : ''}>${pausado ? IC.play : IC.pausa}</button>
-      <button class="gr-bt gr-parar" title="Parar e salvar"${fechando ? ' disabled' : ''}>${IC.parar}</button>
-      <button class="gr-bt gr-marcar" title="Marcar este momento (Ctrl+Alt+M)"${fechando ? ' disabled' : ''}>${IC.marca}</button>
-    </div>
-    <div class="gr-card gr-marcador">
+  return `<div class="gr-tela gr-vivo-tela">
+    <section class="gr-palco">
+      <div class="gr-vivo${pausado ? ' pausado' : ''}"><span class="gr-ponto"></span>${fechando ? (G.fase === 'abrindo' ? 'Abrindo…' : 'Salvando…') : pausado ? 'Pausado' : 'Gravando'}</div>
+      <div class="gr-tempo">${relogio(decorrido())}</div>
+      <div class="gr-nome">${esc(m.titulo || '')}</div>
+      <div class="gr-info"><span title="Gravado até agora">${IC.disco}<b class="gr-bytes">${tamanho(G.bytes) || '0 KB'}</b></span>${m.modo === 'tela' ? `<span>${IC.tela}Tela</span>` : `<span>${IC.onda}Só o som</span>`}</div>
+      <canvas class="gr-onda-viva" height="72" aria-hidden="true"></canvas>
+      <div class="gr-niveis">
+        ${G.medidores.mic ? `<div class="gr-nivel${G.micMudo ? ' mudo' : ''}" data-nivel="mic" title="Microfone">${G.micMudo ? IC.micOff : IC.mic}<i></i></div>` : ''}
+        ${G.medidores.som ? `<div class="gr-nivel" data-nivel="som" title="Som do computador">${IC.som}<i></i></div>` : ''}
+      </div>
+      <div class="gr-ctrl">
+        ${G.medidores.mic ? `<button class="gr-bt gr-mudo${G.micMudo ? ' on' : ''}" title="${G.micMudo ? 'Ligar o microfone' : 'Silenciar o microfone'}"${fechando ? ' disabled' : ''}>${G.micMudo ? IC.micOff : IC.mic}</button>` : ''}
+        <button class="gr-bt gr-pausar" title="${pausado ? 'Continuar' : 'Pausar'}"${fechando ? ' disabled' : ''}>${pausado ? IC.play : IC.pausa}</button>
+        <button class="gr-bt gr-parar" title="Parar e salvar"${fechando ? ' disabled' : ''}>${IC.parar}</button>
+        <button class="gr-bt gr-marcar" title="Marcar este momento (Ctrl+Alt+M)"${fechando ? ' disabled' : ''}>${IC.marca}</button>
+      </div>
+    </section>
+    <aside class="gr-lateral gr-card gr-marcador">
+      <div class="gr-lat-cab"><b>Marcadores</b>${marcas.length ? `<span class="gr-li-n">${marcas.length}</span>` : ''}<small>Ctrl+Alt+M marca de qualquer lugar da IDE</small></div>
       <div class="gr-tipos">${Object.entries(TIPOS).map(([k, v]) => `<button class="gr-tipo${U.tipo === k ? ' on' : ''}" data-tipo="${k}" style="--c:${v.cor}"${fechando ? ' disabled' : ''}><i></i>${v.nome}</button>`).join('')}</div>
       <div class="gr-nota"><input class="gr-nota-in" placeholder="${U.tipo ? TIPOS[U.tipo].nome + ': escreva e Enter (ou só Enter)' : 'Nota opcional e Enter para marcar o momento'}" spellcheck="false"${fechando ? ' disabled' : ''}></div>
-      ${marcas.length ? `<div class="gr-marcas">${marcas.map((x) => `<div class="gr-marca"${x.tipo ? ` style="--c:${TIPOS[x.tipo].cor}"` : ''}><i class="gr-cor"></i><b>${relogio(x.t)}</b><span>${esc(rotuloMarca(x) || 'Momento marcado')}</span><button class="gr-tirar" data-tirar="${x.i}" title="Tirar este marcador">${IC.x}</button></div>`).join('')}</div>` : ''}
-    </div>
+      <div class="gr-marcas">${marcas.length ? marcas.map((x) => `<div class="gr-marca"${x.tipo ? ` style="--c:${TIPOS[x.tipo].cor}"` : ''}><i class="gr-cor"></i><b>${relogio(x.t)}</b><span>${esc(rotuloMarca(x) || 'Momento marcado')}</span><button class="gr-tirar" data-tirar="${x.i}" title="Tirar este marcador">${IC.x}</button></div>`).join('') : `<div class="gr-marcas-vazio">${IC.marca}<span>Marque decisões, tarefas e dúvidas na hora em que acontecem. Elas viram pontos na linha do tempo e entram na ata.</span></div>`}</div>
+    </aside>
   </div>`;
 }
 
@@ -842,7 +876,8 @@ function telaGravacao(m) {
   const tel = m.modo === 'tela', dur = Math.max(1, m.duracao || 1);
   const aba = U.aba === 'trans' || !ata ? 'trans' : 'ata';
   const marcas = (m.marcas || []).map((x, i) => ({ ...x, i }));
-  return `<div class="gr-ver">
+  return `<div class="gr-tela gr-ver">
+    <section class="gr-palco">
     <div class="gr-cab">
       <input class="gr-titulo gr-ren" value="${esc(m.titulo)}" spellcheck="false" aria-label="Nome da reunião">
       <div class="gr-meta"><span>${dataHora(m.inicio)}</span><span>${relogio(m.duracao)}</span><span>${tamanho(m.arqs?.['gravacao.webm'])}</span>${m.fontes ? `<span>${[m.fontes.mic && 'microfone', m.fontes.som && 'som do computador'].filter(Boolean).join(' e ')}</span>` : ''}</div>
@@ -870,13 +905,16 @@ function telaGravacao(m) {
       <button class="icon-btn gr-pasta" title="Abrir a pasta">${IC.pasta}</button>
       <button class="icon-btn gr-apagar" title="Apagar">${IC.lixo}</button>
     </div>
+    </section>
+    <aside class="gr-lateral">
     ${ata || trans ? `<div class="gr-docs">
       <div class="gr-abas"><span class="seg">${ata ? `<button class="${aba === 'ata' ? 'on' : ''}" data-aba="ata">Ata</button>` : ''}${trans ? `<button class="${aba === 'trans' ? 'on' : ''}" data-aba="trans">Transcrição</button>` : ''}</span>
         ${aba === 'trans' ? `<label class="gr-busca gr-achar">${IC.busca}<input class="gr-achar-in" placeholder="Achar na transcrição" value="${esc(U.achar)}" spellcheck="false"></label>` : '<span class="gr-esp"></span>'}
         ${aba === 'ata' ? `<button class="icon-btn gr-ata-dl" title="Salvar a ata (.md) em Downloads">${IC.baixar}</button>` : ''}
         <button class="icon-btn gr-copiar-doc" title="Copiar o texto">${IC.copiar}</button></div>
       <div class="gr-doc">${aba === 'trans' ? docTrans(trans) : md(ata)}</div>
-    </div>` : !trab ? `<div class="gr-vazio">${IC.texto}<span>Transcreva para ter o texto da reunião e uma ata com resumo, decisões e tarefas, escrita pelo ${U.cfg.agente === 'codex' ? 'Codex' : 'Claude Code'}.</span></div>` : ''}
+    </div>` : !trab ? `<div class="gr-vazio">${IC.texto}<span>Transcreva para ter o texto da reunião e uma ata com resumo, decisões e tarefas, escrita pelo ${U.cfg.agente === 'codex' ? 'Codex' : 'Claude Code'}.</span></div>` : `<div class="gr-vazio">${IC.texto}<span>A transcrição e a ata aparecem aqui quando ficarem prontas.</span></div>`}
+    </aside>
   </div>`;
 }
 // transcrição com busca: só as falas que têm o termo, com ele destacado

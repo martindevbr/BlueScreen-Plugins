@@ -282,3 +282,57 @@ html.lite .gr-hero-ic { box-shadow: none; }
   .gr-linha { gap: 10px; }
   .gr-linha-ic { display: none; }
 }
+
+/* ---------- 0.4: telas que encaixam na janela ----------
+   .gr-tela = palco (o principal) + lateral. Larga: duas colunas do tamanho da janela, cada uma com a sua rolagem
+   (a página não rola). Estreita: uma coluna só, e a página rola. */
+.gr-tela { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 20px; max-width: 1500px; margin: 0 auto; align-content: start; }
+.gr-palco, .gr-lateral { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.gr-prep .gr-palco, .gr-vivo-tela .gr-palco { align-items: center; }
+.gr-prep .gr-palco > *, .gr-vivo-tela .gr-palco > .gr-onda-viva { align-self: stretch; }
+.gr-prep .gr-palco { max-width: 640px; width: 100%; margin: 0 auto; }
+.gr-partida { align-self: center !important; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.gr-tela .gr-recentes { margin-top: 0; }
+.gr-resumo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.gr-resumo > div { display: flex; flex-direction: column; gap: 1px; padding: 10px 12px; border-radius: var(--r); border: 1px solid var(--line); background: var(--panel); min-width: 0; }
+.gr-resumo b { font-size: 18px; font-weight: 650; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gr-resumo small { color: var(--muted); font-size: 11.5px; }
+
+.gr-onda-viva { display: block; width: 100%; max-width: 620px; height: 72px; align-self: center !important; }
+html.lite .gr-onda-viva { display: none; }
+.gr-vivo-tela .gr-tempo { font-size: clamp(44px, 9cqi, 76px); }
+.gr-vivo-tela .gr-lateral.gr-card { padding: 14px; }
+.gr-lat-cab { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.gr-lat-cab b { font-size: 14px; font-weight: 600; }
+.gr-lat-cab small { flex-basis: 100%; color: var(--muted); font-size: 11.5px; }
+.gr-vivo-tela .gr-marcas { max-height: none; flex: 1; min-height: 0; }
+.gr-marcas-vazio { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: var(--r-sm); border: 1px dashed var(--line-2); color: var(--muted); font-size: 12px; line-height: 1.5; }
+.gr-marcas-vazio .i { margin-top: 2px; }
+
+.gr-tela.gr-ver { display: grid; max-width: 1500px; padding: 20px; gap: 16px; }
+.gr-ver .gr-lateral .gr-docs { display: flex; flex-direction: column; min-height: 0; }
+.gr-ver .gr-lateral .gr-vazio { align-items: flex-start; }
+
+@container (min-width: 940px) {
+  .gr-pagina:has(> .gr-tela) { overflow: hidden; }
+  .gr-tela { grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); height: 100%; align-content: stretch; }
+  .gr-palco, .gr-lateral { min-height: 0; overflow: auto; scrollbar-width: thin; padding: 2px; }
+  .gr-prep { grid-template-columns: minmax(0, 1.5fr) minmax(300px, 420px); }
+  .gr-prep .gr-palco, .gr-vivo-tela .gr-palco { justify-content: safe center; }
+  .gr-vivo-tela { grid-template-columns: minmax(0, 1.4fr) minmax(320px, 440px); }
+  .gr-vivo-tela .gr-lateral.gr-card { overflow: hidden; }
+  .gr-vivo-tela .gr-marcas { overflow: auto; }
+  /* ouvir: o player de um lado, a ata do outro, cada um com a sua rolagem */
+  .gr-ver .gr-lateral { overflow: hidden; }
+  .gr-ver .gr-lateral .gr-docs { flex: 1; }
+  .gr-ver .gr-lateral .gr-doc { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+  .gr-ver .gr-midia:not(.audio) { max-height: 52vh; }
+}
+@container (min-width: 1280px) {
+  .gr-tela { gap: 22px; padding: 26px 28px; }
+  .gr-ver { grid-template-columns: minmax(0, 1.5fr) minmax(380px, 1fr); }
+}
+@container (max-width: 520px) {
+  .gr-tela, .gr-tela.gr-ver { padding: 14px 12px 28px; gap: 12px; }
+  .gr-resumo b { font-size: 15px; }
+}

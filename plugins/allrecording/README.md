@@ -4,7 +4,7 @@
 | | |
 |---|---|
 | **Autor** | Martin Hartfelder |
-| **Versão** | 0.3.0 |
+| **Versão** | 0.4.0 |
 | **Licença** | MIT |
 | **Categoria** | Produtividade |
 | **Precisa de** | nada além do BlueScreen |
@@ -86,6 +86,13 @@ node tests/basico.test.mjs
 Feito por Martin Hartfelder. Licença MIT (veja o campo `license` do `plugin.json`).
 
 ## Histórico de versões
+
+### 0.4.0
+
+- Telas que encaixam na janela: em tela larga, duas colunas do tamanho da janela (gravar e o resumo; o tempo e os marcadores; o player e a ata), cada uma com a sua rolagem. Em tela estreita, vira uma coluna só.
+- Onda ao vivo durante a gravação (some no modo leve da IDE).
+- Resumo na tela inicial: quantas gravações, tempo gravado e espaço no disco.
+- A ata e a transcrição ficam ao lado do player.
 
 ### 0.3.0
 
